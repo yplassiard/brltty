@@ -1,0 +1,76 @@
+###############################################################################
+# libbrlapi - A library providing access to braille terminals for applications.
+#
+# Copyright (C) 2005-2018 by
+#   Alexis Robert <alexissoft@free.fr>
+#   Samuel Thibault <Samuel.Thibault@ens-lyon.org>
+#
+# libbrlapi comes with ABSOLUTELY NO WARRANTY.
+#
+# This is free software, placed under the terms of the
+# GNU Lesser General Public License, as published by the Free Software
+# Foundation; either version 2.1 of the License, or (at your option) any
+# later version. Please see the file LICENSE-LGPL for details.
+#
+# Web Page: http://brltty.app/
+#
+# This software is maintained by Dave Mielke <dave@mielke.cc>.
+###############################################################################
+
+include $(SRC_TOP)bindings.mk
+
+PYTHON2_OK = @PYTHON2_OK@
+PYTHON2 = @PYTHON2@
+PYTHON2_PROLOGUE = @PYTHON2_PROLOGUE@
+PYTHON2_VERSION = @PYTHON2_VERSION@
+PYTHON2_CPPFLAGS = @PYTHON2_CPPFLAGS@
+PYTHON2_LIBS = @PYTHON2_LIBS@
+PYTHON2_EXTRA_LIBS = @PYTHON2_EXTRA_LIBS@
+PYTHON2_EXTRA_LDFLAGS = @PYTHON2_EXTRA_LDFLAGS@
+PYTHON2_SITE_PKG = @PYTHON2_SITE_PKG@
+
+CYTHON = @CYTHON@
+CYTHON_CFLAGS = @CYTHON_CFLAGS@
+
+PYTHON2_DESTDIR = $(INSTALL_ROOT)
+PYTHON2_PREFIX =
+
+PYTHON2_MODULE = $(API_NAME)
+PYTHON2_API = $(PYTHON2_MODULE).$(LIB_EXT)
+
+all: $(PYTHON2_API)
+
+$(PYTHON2_API): brlapi.auto.c $(API_HDRS) brlapi
+	set -- --quiet build --build-temp .; \
+	[ "@host_os@" != "mingw32" ] || set -- "$${@}" --compiler mingw32; \
+	$(PYTHON2) ./setup.py "$${@}"
+	[ "@host_os@" != "mingw32" ] || $(PYTHON2) ./setup.py --quiet bdist_wininst --skip-build
+
+brlapi.auto.c: $(SRC_DIR)/../Python/brlapi.pyx $(SRC_DIR)/../Python/c_brlapi.pxd constants.auto.pyx
+	$(CYTHON) -I../Python -o $@ $(SRC_DIR)/../Python/brlapi.pyx
+
+constants.auto.pyx: $(CONSTANTS_DEPENDENCIES)
+	$(AWK) $(CONSTANTS_ARGUMENTS) >$@
+
+doc: $(PYTHON2_API)
+	LD_PRELOAD=$(API_LIB) $(PYTHON2) $(SRC_DIR)/mkdoc.py $(PYTHON2_MODULE)
+
+INSTALLED_FILES = installed-files
+
+install: all
+	set -- --quiet install --skip-build --record "$(INSTALLED_FILES)"; \
+	[ -z "$(PYTHON2_DESTDIR)" ] || set -- "$${@}" --root "$(PYTHON2_DESTDIR)"; \
+	[ -z "$(PYTHON2_PREFIX)" ] || set -- "$${@}" --prefix "$(PYTHON2_PREFIX)"; \
+	$(PYTHON2) ./setup.py "$${@}"
+
+uninstall:
+	[ ! -f "$(INSTALLED_FILES)" ] || rm -f -- `$(AWK) '{printf "%s%s ", "$(PYTHON2_DESTDIR)", $$0}' "$(INSTALLED_FILES)"`
+
+clean::
+	-rm -f -- $(PYTHON2_API) *.auto.* *.html "$(INSTALLED_FILES)"
+	-rm -f -r -- build
+	-rm -f -r -- dist
+	-rm -f -r -- Release
+
+distclean::
+	-rm -f -- setup.py

@@ -698,7 +698,8 @@ BRLTTY_ARG_DISABLE(
       BRLTTY_BINDINGS([Java])
       BRLTTY_BINDINGS([Lisp])
       BRLTTY_BINDINGS([OCaml])
-      BRLTTY_BINDINGS([Python])
+      BRLTTY_BINDINGS([Python2])
+      BRLTTY_BINDINGS([Python3])
       BRLTTY_BINDINGS([Tcl])
 
       test -n "${api_bindings}" && {
@@ -1971,7 +1972,8 @@ AC_OUTPUT([
    Documents/BrlAPIref.doxy
    Bindings/Lisp/brlapi.asd
    Bindings/Lisp/brlapi_config.lisp
-   Bindings/Python/setup.py
+   Bindings/Python2/setup.py
+   Bindings/Python3/setup.py
    Android/Application/res/values/configured.xml:Android/Application/res.strings.in
    Autostart/Systemd/brltty@.service
    ${brltty_make_files}
