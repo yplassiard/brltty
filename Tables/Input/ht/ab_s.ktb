@@ -16,6 +16,7 @@
 # This software is maintained by Dave Mielke <dave@mielke.cc>.
 ###############################################################################
 
-title HandyTech Active Braille
+title HandyTech Active Braille S
 
 include ab.kti
+include joystick.kti
