@@ -1610,6 +1610,7 @@ BRLTTY_BRAILLE_DRIVER([ht], [HandyTech])
 BRLTTY_BRAILLE_DRIVER([hw], [HumanWare])
 BRLTTY_BRAILLE_DRIVER([ir], [Iris])
 BRLTTY_BRAILLE_DRIVER([ic], [Inceptor])
+BRLTTY_BRAILLE_DRIVER([iv], [InsideVision])
 BRLTTY_IF_PACKAGE([Libbraille], [libbraille], [include/braille.h], [dnl
    BRLTTY_BRAILLE_DRIVER([lb], [Libbraille], [-L$(LIBBRAILLE_ROOT)/lib -lbraille])
 ])
