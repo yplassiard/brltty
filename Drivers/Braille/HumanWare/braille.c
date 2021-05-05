@@ -125,6 +125,13 @@ BEGIN_KEY_NAME_TABLES(one)
   KEY_NAME_TABLE(braille),
 END_KEY_NAME_TABLES
 
+ BEGIN_KEY_NAME_TABLES(BI40X)
+  KEY_NAME_TABLE(routing),
+  KEY_NAME_TABLE(thumb),
+  KEY_NAME_TABLE(braille),
+  KEY_NAME_TABLE(command),
+END_KEY_NAME_TABLES
+
 DEFINE_KEY_TABLE(BI14)
 DEFINE_KEY_TABLE(BI32)
 DEFINE_KEY_TABLE(BI40)
@@ -134,6 +141,7 @@ DEFINE_KEY_TABLE(C20)
 DEFINE_KEY_TABLE(M40)
 DEFINE_KEY_TABLE(NLS)
 DEFINE_KEY_TABLE(one)
+DEFINE_KEY_TABLE(BI40X)
 
 BEGIN_KEY_TABLE_LIST
   &KEY_TABLE_DEFINITION(BI14),
@@ -145,6 +153,7 @@ BEGIN_KEY_TABLE_LIST
   &KEY_TABLE_DEFINITION(M40),
   &KEY_TABLE_DEFINITION(NLS),
   &KEY_TABLE_DEFINITION(one),
+  &KEY_TABLE_DEFINITION(BI40X),
 END_KEY_TABLE_LIST
 
 typedef struct {
@@ -156,6 +165,7 @@ typedef struct {
   unsigned char hasCommandKeys:1;
   unsigned char hasJoystick:1;
   unsigned char hasSecondThumbKeys:1;
+    unsigned char hasPowerKey:1;
 } ModelEntry;
 
 static const ModelEntry modelEntry_BI14 = {
@@ -220,6 +230,15 @@ static const ModelEntry modelEntry_one = {
   .keyTableDefinition = &KEY_TABLE_DEFINITION(one)
 };
 
+static const ModelEntry modelEntry_BI40X = {
+  .modelName = "Brailliant BI 40X",
+  .modelIdentifier = HW_MODEL_HW_BRAILLE_BI40X,
+  // .hasBrailleKeys = 1,
+  // .hasCommandKeys = 1,
+  // .hasPowerKey = 1,
+  .keyTableDefinition = &KEY_TABLE_DEFINITION(BI40X)
+};
+
 static const ModelEntry *modelTable[] = {
   &modelEntry_BI14,
   &modelEntry_BI32,
@@ -230,6 +249,7 @@ static const ModelEntry *modelTable[] = {
   &modelEntry_M40,
   &modelEntry_NLS,
   &modelEntry_one,
+  &modelEntry_BI40X,
 };
 
 static unsigned char modelCount = ARRAY_COUNT(modelTable);
@@ -698,7 +718,7 @@ verifyHidPacket (
           break;
 
         default:
-          return BRL_PVR_INVALID;
+            return BRL_PVR_INVALID;
       }
       break;
 
@@ -740,6 +760,7 @@ probeHidDisplay (BrailleDisplay *brl) {
     if (brl->data->model->hasCommandKeys) *size += COMMAND_KEY_COUNT;
     if (brl->data->model->hasJoystick) *size += JOYSTICK_KEY_COUNT;
     if (brl->data->model->hasSecondThumbKeys) *size += THUMB_KEY_COUNT;
+    if (brl->data->model->hasPowerKey) *size = 46;
   }
 
   return 1;
@@ -782,7 +803,7 @@ processHidInputPacket (BrailleDisplay *brl) {
       logUnexpectedPacket(packet, length);
     case HW_REP_FTR_Settings:
     case HW_REP_FTR_Configuration:
-      break;
+          break;
   }
 
   return 1;
@@ -835,10 +856,13 @@ static const ResourceData resourceData_serial_NLS = {
   .protocol = &serialProtocol
 };
 
+
 static const ResourceData resourceData_serial_one = {
   .model = &modelEntry_one,
   .protocol = &serialProtocol
 };
+
+
 
 static const ResourceData resourceData_HID = {
   .protocol = &hidProtocol
@@ -856,6 +880,11 @@ static const ResourceData resourceData_HID_C20 = {
 
 static const ResourceData resourceData_HID_M40 = {
   .model = &modelEntry_M40,
+  .protocol = &hidProtocol
+};
+
+static const ResourceData resourceData_HID_BI40X = {
+  .model = &modelEntry_BI40X,
   .protocol = &hidProtocol
 };
 
@@ -963,6 +992,14 @@ connectResource (BrailleDisplay *brl, const char *identifier) {
       .data = &resourceData_HID_C20,
       .resetDevice = 1
     },
+    { /* APH Mantis Q40 (HID protocol, firmware 1.0) */
+      .vendor=0X1C71, .product=0XC131, 
+      .configuration=1, .interface=0, .alternative=0,
+            .inputEndpoint=1, .outputEndpoint=2,
+      .verifyInterface = 1,
+            .data = &resourceData_HID_BI40X,
+      .resetDevice = 0
+    },
 
     { /* APH Mantis Q40 (HID protocol, firmware 1.0) */
       .vendor=0X1C71, .product=0XC111, 
@@ -1017,6 +1054,7 @@ connectResource (BrailleDisplay *brl, const char *identifier) {
       .data = &resourceData_HID_one,
       .resetDevice = 1
     },
+
   END_USB_CHANNEL_DEFINITIONS
 
   GioDescriptor descriptor;
@@ -1055,6 +1093,7 @@ brl_construct (BrailleDisplay *brl, char **parameters, const char *device) {
     memset(brl->data, 0, sizeof(*brl->data));
 
     if (connectResource(brl, device)) {
+        logMessage(LOG_DEBUG, "Probing HID display ...");
       if (brl->data->protocol->probeDisplay(brl)) {
         setBrailleKeyTable(brl, brl->data->model->keyTableDefinition);
         makeOutputTable(dotsTable_ISO11548_1);

@@ -45,6 +45,8 @@ typedef enum {
   HW_MODEL_APH_MANTIS_Q40        = 0X12,
   HW_MODEL_NLS_EREADER           = 0X13,
   HW_MODEL_HW_BRAILLE_ONE        = 0X14,
+  HW_MODEL_HW_BRAILLE_BI40X      = 0X15,
+b
 } HW_ModelIdentifier;
 
 typedef union {
