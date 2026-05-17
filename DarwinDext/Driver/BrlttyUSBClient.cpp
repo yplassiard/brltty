@@ -27,7 +27,14 @@
 struct BrlttyUSBClient_IVars {
     /* Weak — owned by the driver, lifetime is bounded by Stop(). */
     BrlttyUSBDriver *driver;
+    /* Retained for the lifetime of the user-client session. We keep
+     * our own reference so an in-flight ExternalMethod can't race a
+     * driver-side teardown that nulls out the driver's pointer. */
     IOUSBHostInterface *interface;
+    /* Set to true once Stop() has run. Selectors check this and
+     * bail with kIOReturnNotReady — the underlying interface may
+     * already be torn down on the dispatch queue. */
+    bool                stopped;
 };
 
 // MARK: - Lifecycle
@@ -80,9 +87,27 @@ kern_return_t
 IMPL(BrlttyUSBClient, Stop)
 {
     LOG("user client stopping");
+    // Set the flag before releasing the interface so any selector
+    // dispatched concurrently sees the teardown and bails with a
+    // clean error instead of touching a dangling pointer.
+    ivars->stopped = true;
     OSSafeReleaseNULL(ivars->interface);
     ivars->driver = nullptr;
     return Stop(provider, SUPERDISPATCH);
+}
+
+// Convenience used by every selector — centralises the "is the user
+// client still usable?" check so each dispatcher doesn't have to
+// repeat the three-line guard.
+static inline kern_return_t
+GetReadyClient(OSObject *target, BrlttyUSBClient **out_self)
+{
+    auto *self = OSDynamicCast(BrlttyUSBClient, target);
+    if (!self || !self->ivars || self->ivars->stopped || !self->ivars->interface) {
+        return kIOReturnNotReady;
+    }
+    *out_self = self;
+    return kIOReturnSuccess;
 }
 
 // MARK: - External method dispatch
@@ -183,8 +208,9 @@ static kern_return_t
 SDispatchGetPipeCount(OSObject *target, void *reference, IOUserClientMethodArguments *args)
 {
     (void)reference;
-    auto *self = OSDynamicCast(BrlttyUSBClient, target);
-    if (!self || !self->ivars->interface) return kIOReturnNotReady;
+    BrlttyUSBClient *self = nullptr;
+    kern_return_t guard = GetReadyClient(target, &self);
+    if (guard != kIOReturnSuccess) return guard;
 
     const IOUSBConfigurationDescriptor *config = self->ivars->interface->CopyConfigurationDescriptor();
     if (!config) return kIOReturnNoDevice;
@@ -200,8 +226,9 @@ static kern_return_t
 SDispatchGetPipeInfo(OSObject *target, void *reference, IOUserClientMethodArguments *args)
 {
     (void)reference;
-    auto *self = OSDynamicCast(BrlttyUSBClient, target);
-    if (!self || !self->ivars->interface) return kIOReturnNotReady;
+    BrlttyUSBClient *self = nullptr;
+    kern_return_t guard = GetReadyClient(target, &self);
+    if (guard != kIOReturnSuccess) return guard;
 
     const uint64_t index = args->scalarInput[0];
 
@@ -237,8 +264,9 @@ static kern_return_t
 SDispatchBulkRead(OSObject *target, void *reference, IOUserClientMethodArguments *args)
 {
     (void)reference;
-    auto *self = OSDynamicCast(BrlttyUSBClient, target);
-    if (!self || !self->ivars->interface) return kIOReturnNotReady;
+    BrlttyUSBClient *self = nullptr;
+    kern_return_t guard = GetReadyClient(target, &self);
+    if (guard != kIOReturnSuccess) return guard;
 
     const uint8_t  address   = (uint8_t)(args->scalarInput[0] & 0xff);
     const uint32_t timeoutMs = (uint32_t)(args->scalarInput[1] & 0xffffffff);
@@ -265,8 +293,9 @@ static kern_return_t
 SDispatchBulkWrite(OSObject *target, void *reference, IOUserClientMethodArguments *args)
 {
     (void)reference;
-    auto *self = OSDynamicCast(BrlttyUSBClient, target);
-    if (!self || !self->ivars->interface) return kIOReturnNotReady;
+    BrlttyUSBClient *self = nullptr;
+    kern_return_t guard = GetReadyClient(target, &self);
+    if (guard != kIOReturnSuccess) return guard;
 
     const uint8_t  address   = (uint8_t)(args->scalarInput[0] & 0xff);
     const uint32_t timeoutMs = (uint32_t)(args->scalarInput[1] & 0xffffffff);
@@ -293,8 +322,9 @@ static kern_return_t
 SDispatchControlTransfer(OSObject *target, void *reference, IOUserClientMethodArguments *args)
 {
     (void)reference;
-    auto *self = OSDynamicCast(BrlttyUSBClient, target);
-    if (!self || !self->ivars->interface) return kIOReturnNotReady;
+    BrlttyUSBClient *self = nullptr;
+    kern_return_t guard = GetReadyClient(target, &self);
+    if (guard != kIOReturnSuccess) return guard;
 
     const uint64_t packed    = args->scalarInput[0];
     const uint32_t timeoutMs = (uint32_t)(args->scalarInput[1] & 0xffffffff);
