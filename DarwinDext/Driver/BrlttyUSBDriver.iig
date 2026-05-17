@@ -20,6 +20,14 @@ public:
 
     virtual kern_return_t Start(IOService *provider) override;
     virtual kern_return_t Stop(IOService *provider) override;
+
+    virtual kern_return_t NewUserClient(uint32_t type,
+                                        IOUserClient **userClient) override;
+
+    /* Returns a retained reference to the matched IOUSBHostInterface,
+     * or nullptr if the driver hasn't reached Start() yet. The caller
+     * is responsible for releasing the returned pointer. */
+    IOUSBHostInterface *CopyInterface() LOCALONLY;
 };
 
 #endif

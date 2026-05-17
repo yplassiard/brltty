@@ -22,6 +22,13 @@
   <string>Allows brltty to control refreshable braille displays attached over USB.</string>
   <key>OSMinimumDriverKitVersion</key>
   <string>25.4</string>
+  <key>UserClientProperties</key>
+  <dict>
+    <key>IOClass</key>
+    <string>IOUserUserClient</string>
+    <key>IOUserClass</key>
+    <string>BrlttyUSBClient</string>
+  </dict>
   <key>IOKitPersonalities</key>
   <dict>
     <key>brltty-0904-6102</key>

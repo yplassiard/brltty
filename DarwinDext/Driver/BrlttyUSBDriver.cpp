@@ -11,11 +11,14 @@
 
 #include <DriverKit/IOLib.h>
 #include <DriverKit/IOService.h>
+#include <DriverKit/IOUserClient.h>
+#include <DriverKit/OSDictionary.h>
 #include <USBDriverKit/IOUSBHostInterface.h>
 #include <USBDriverKit/IOUSBHostDevice.h>
 #include <USBDriverKit/IOUSBHostPipe.h>
 
 #include "BrlttyUSBDriver.h"
+#include "BrlttyUSBClient.h"
 
 #define LOG(fmt, ...) os_log(OS_LOG_DEFAULT, "brltty-dext: " fmt, ##__VA_ARGS__)
 
@@ -91,4 +94,41 @@ IMPL(BrlttyUSBDriver, Stop)
     LOG("Stop");
     ivars->interface = nullptr;
     return Stop(provider, SUPERDISPATCH);
+}
+
+// MARK: - User-client plumbing
+
+IOUSBHostInterface *
+BrlttyUSBDriver::CopyInterface()
+{
+    IOUSBHostInterface *iface = ivars ? ivars->interface : nullptr;
+    if (iface) iface->retain();
+    return iface;
+}
+
+kern_return_t
+IMPL(BrlttyUSBDriver, NewUserClient)
+{
+    (void)type;
+
+    IOService *created = nullptr;
+    // "UserClientProperties" is the dict in our Info.plist that tells
+    // DriverKit which IOUserClass to instantiate and how to bootstrap
+    // it. Keeping it in the plist (rather than coded here) means we
+    // can ship a single-driver dext that exposes several distinct
+    // client classes later without recompiling.
+    kern_return_t ret = Create(this, "UserClientProperties", &created);
+    if (ret != kIOReturnSuccess) {
+        LOG("Create(UserClientProperties) failed: 0x%x", ret);
+        return ret;
+    }
+
+    *userClient = OSDynamicCast(IOUserClient, created);
+    if (!*userClient) {
+        LOG("Create() returned non-IOUserClient");
+        OSSafeReleaseNULL(created);
+        return kIOReturnError;
+    }
+
+    return kIOReturnSuccess;
 }
