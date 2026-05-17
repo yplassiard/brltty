@@ -30,7 +30,10 @@ func run() throws {
         return
     }
 
-    try connection.enterTtyMode()
+    // tty == -1 means "any tty" — the client receives focus regardless
+    // of which terminal is in the foreground. Use a specific number if
+    // you want focus to be scoped to one tty only.
+    try connection.enterTtyMode(tty: -1)
     defer { try? connection.leaveTtyMode() }
 
     try connection.writeText("Hello, BrlAPI", cursor: 1)
