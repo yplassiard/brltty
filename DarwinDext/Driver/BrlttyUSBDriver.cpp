@@ -1,10 +1,14 @@
 /*
  * brltty USB user-space driver (DriverKit dext).
  *
- * This driver matches USB interfaces of every braille display known to brltty
- * with a higher IOProbeScore than AppleUserUSBHostHIDDevice, so we claim the
- * USB interface before the macOS HID stack does. The interface is then exposed
- * to brltty userland through an IOUserClient (added in a follow-up commit).
+ * Matches at the IOUSBHostDevice level (not the interface level) so that we
+ * grab the whole device before macOS publishes the IOUSBHostInterface children
+ * — that's the only way to keep AppleUserHIDDevice from claiming braille
+ * displays via the HID stack. With matchInterfaces=false on SetConfiguration
+ * the kernel never even runs interface matching, so there's no race.
+ *
+ * We then open the first IOUSBHostInterface ourselves and hand it to
+ * BrlttyUSBClient, which exposes pipe I/O to brltty userland.
  */
 
 #include <os/log.h>
@@ -23,7 +27,9 @@
 #define LOG(fmt, ...) os_log(OS_LOG_DEFAULT, "brltty-dext: " fmt, ##__VA_ARGS__)
 
 struct BrlttyUSBDriver_IVars {
-    IOUSBHostInterface *interface;
+    IOUSBHostDevice    *device;     // retained — owns the device
+    IOUSBHostInterface *interface;  // retained — first interface, handed to userland
+    bool                deviceOpen;
 };
 
 bool
@@ -57,29 +63,83 @@ IMPL(BrlttyUSBDriver, Start)
         return ret;
     }
 
-    IOUSBHostInterface *iface = OSDynamicCast(IOUSBHostInterface, provider);
-    if (!iface) {
-        LOG("provider is not IOUSBHostInterface");
+    // Provider is the IOUSBHostDevice we matched on (idVendor + idProduct).
+    IOUSBHostDevice *dev = OSDynamicCast(IOUSBHostDevice, provider);
+    if (!dev) {
+        LOG("provider is not IOUSBHostDevice");
         return kIOReturnInvalid;
     }
 
-    ivars->interface = iface;
-
+    // Log what we matched so debugging is easier when a new braille
+    // display shows up.
     uint16_t vendor = 0, product = 0;
+    const IOUSBDeviceDescriptor *dd = dev->CopyDeviceDescriptor();
+    if (dd) {
+        vendor  = dd->idVendor;
+        product = dd->idProduct;
+    }
+    LOG("Start: matched USB device vendor=0x%04x product=0x%04x", vendor, product);
 
-    IOUSBHostDevice *dev = nullptr;
-    iface->CopyDevice(&dev);
-    if (dev) {
-        const IOUSBDeviceDescriptor *dd = dev->CopyDeviceDescriptor();
-        if (dd) {
-            vendor = dd->idVendor;
-            product = dd->idProduct;
-        }
+    ret = dev->Open(this, 0, 0);
+    if (ret != kIOReturnSuccess) {
+        LOG("Open(device) failed: 0x%x", ret);
+        return ret;
+    }
+    ivars->deviceOpen = true;
+
+    // The crucial trick: tell the kernel NOT to run interface matching when
+    // we set the configuration. Without this, IOUSBHostInterface children
+    // would be published and AppleUserHIDDevice would claim the HID one.
+    // With matchInterfaces=false we own everything and the HID stack stays
+    // out of our way.
+    ret = dev->SetConfiguration(1, /* matchInterfaces */ false);
+    if (ret != kIOReturnSuccess) {
+        LOG("SetConfiguration(1) failed: 0x%x", ret);
+        dev->Close(this, 0);
+        ivars->deviceOpen = false;
+        return ret;
     }
 
-    LOG("Start: claimed USB interface vendor=0x%04x product=0x%04x", vendor, product);
+    // Walk the device's interfaces and keep the first one for userland.
+    // Braille displays we care about are single-interface (HID) — anything
+    // multi-interface (composite serial bridges, etc.) keeps the first
+    // interface for now; we can revisit if a specific device needs more.
+    uintptr_t iter = 0;
+    ret = dev->CreateInterfaceIterator(&iter);
+    if (ret != kIOReturnSuccess) {
+        LOG("CreateInterfaceIterator failed: 0x%x", ret);
+        dev->Close(this, 0);
+        ivars->deviceOpen = false;
+        return ret;
+    }
 
-    OSSafeReleaseNULL(dev);
+    IOUSBHostInterface *iface = nullptr;
+    ret = dev->CopyInterface(iter, &iface);
+    dev->DestroyInterfaceIterator(iter);
+    if (ret != kIOReturnSuccess || !iface) {
+        LOG("CopyInterface failed: 0x%x (iface=%p)", ret, iface);
+        OSSafeReleaseNULL(iface);
+        dev->Close(this, 0);
+        ivars->deviceOpen = false;
+        return ret != kIOReturnSuccess ? ret : kIOReturnNoDevice;
+    }
+
+    ret = iface->Open(this, 0, 0);
+    if (ret != kIOReturnSuccess) {
+        LOG("Open(interface) failed: 0x%x", ret);
+        OSSafeReleaseNULL(iface);
+        dev->Close(this, 0);
+        ivars->deviceOpen = false;
+        return ret;
+    }
+
+    // Retain the device for the user-client. The interface was returned
+    // already retained by CopyInterface, so no extra retain needed.
+    dev->retain();
+    ivars->device    = dev;
+    ivars->interface = iface;
+
+    LOG("Start: device opened, interface 0 claimed");
 
     ret = RegisterService();
     if (ret != kIOReturnSuccess) {
@@ -92,7 +152,18 @@ kern_return_t
 IMPL(BrlttyUSBDriver, Stop)
 {
     LOG("Stop");
-    ivars->interface = nullptr;
+
+    if (ivars->interface) {
+        ivars->interface->Close(this, 0);
+        OSSafeReleaseNULL(ivars->interface);
+    }
+    if (ivars->device) {
+        if (ivars->deviceOpen) {
+            ivars->device->Close(this, 0);
+            ivars->deviceOpen = false;
+        }
+        OSSafeReleaseNULL(ivars->device);
+    }
     return Stop(provider, SUPERDISPATCH);
 }
 

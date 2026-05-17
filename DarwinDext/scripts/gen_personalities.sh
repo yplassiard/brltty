@@ -33,18 +33,20 @@ while read -r vendor product; do
     cat <<EOF
   <key>${key}</key>
   <dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.brltty.usb-driver</string>
     <key>CFBundleIdentifierKernel</key>
     <string>com.apple.kpi.iokit</string>
     <key>IOClass</key>
     <string>IOUserService</string>
-    <key>IOMatchCategory</key>
-    <string>com.brltty.usb-driver</string>
     <key>IOProviderClass</key>
-    <string>IOUSBHostInterface</string>
+    <string>IOUSBHostDevice</string>
     <key>IOUserClass</key>
     <string>BrlttyUSBDriver</string>
     <key>IOUserServerName</key>
     <string>com.brltty.usb-driver</string>
+    <key>IOUserServerOneProcess</key>
+    <true/>
     <key>idVendor</key>
     <integer>${vdec}</integer>
     <key>idProduct</key>
