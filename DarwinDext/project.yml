@@ -1,0 +1,53 @@
+name: BrlttyUSB
+options:
+  bundleIdPrefix: com.brltty
+  deploymentTarget:
+    macOS: "12.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.0"
+
+targets:
+  BrlttyUSBHost:
+    type: application
+    platform: macOS
+    sources:
+      - HostApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.brltty.usb-host
+        INFOPLIST_FILE: HostApp/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: HostApp/Host.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+    dependencies:
+      - target: BrlttyUSBDriver
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/SystemExtensions
+
+  BrlttyUSBDriver:
+    type: driver-extension
+    platform: macOS
+    sources:
+      - path: Driver
+        includes:
+          - "*.cpp"
+          - "*.iig"
+          - "*.h"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.brltty.usb-driver
+        PRODUCT_NAME: com.brltty.usb-driver
+        INFOPLIST_FILE: Driver/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Driver/Driver.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        SDKROOT: driverkit
+        SUPPORTED_PLATFORMS: driverkit
+        DRIVERKIT_DEPLOYMENT_TARGET: "25.4"
+        IIG_FRAMEWORKS: "DriverKit USBDriverKit"
+        OTHER_LDFLAGS: "-framework DriverKit -framework USBDriverKit"
