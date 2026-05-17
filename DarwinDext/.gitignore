@@ -1,0 +1,13 @@
+# Xcode user state
+*.xcuserstate
+xcuserdata/
+project.xcworkspace/xcshareddata/
+DerivedData/
+build/
+
+# Compiled probe binaries
+probe/usb_capture
+
+# Provisioning profiles are per-developer
+*.provisionprofile
+*.mobileprovision

@@ -1,0 +1,441 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		288203771C6D3495F6DF73DD /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD291D5D110B3C643F24C5DF /* main.swift */; };
+		8321F6581C99A6D634C01CF0 /* BrlttyUSBDriver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 910F27C8F4132917E9F8E996 /* BrlttyUSBDriver.cpp */; };
+		C8B944FC02948ED824220BAD /* BrlttyUSBDriver.iig in Sources */ = {isa = PBXBuildFile; fileRef = 337F1136475B4B3C6C49D95E /* BrlttyUSBDriver.iig */; };
+		FB2E8C6BD1B8AF9A9AC58375 /* com.brltty.usb-driver.dext in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 41C823A57715F6E8F0F6DF9C /* com.brltty.usb-driver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		9BE611898C3C48D289D6E90B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3C0C4FF9943921B5AF651332 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 43C46C6FAB59DAC6639CEFA8;
+			remoteInfo = BrlttyUSBDriver;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4B51669AC619564B9EF78122 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/SystemExtensions;
+			dstSubfolderSpec = 1;
+			files = (
+				FB2E8C6BD1B8AF9A9AC58375 /* com.brltty.usb-driver.dext in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1DA321ADFEED73A74F62AEA0 /* BrlttyUSBHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BrlttyUSBHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		337F1136475B4B3C6C49D95E /* BrlttyUSBDriver.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = BrlttyUSBDriver.iig; sourceTree = "<group>"; };
+		41C823A57715F6E8F0F6DF9C /* com.brltty.usb-driver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = "com.brltty.usb-driver.dext"; sourceTree = BUILT_PRODUCTS_DIR; };
+		910F27C8F4132917E9F8E996 /* BrlttyUSBDriver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BrlttyUSBDriver.cpp; sourceTree = "<group>"; };
+		AF881A55DD8AEFED0632815B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		DA3E332D22EC5BDCCF0699E5 /* Host.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Host.entitlements; sourceTree = "<group>"; };
+		FD291D5D110B3C643F24C5DF /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		7277285A4373641DF6817E82 /* HostApp */ = {
+			isa = PBXGroup;
+			children = (
+				DA3E332D22EC5BDCCF0699E5 /* Host.entitlements */,
+				AF881A55DD8AEFED0632815B /* Info.plist */,
+				FD291D5D110B3C643F24C5DF /* main.swift */,
+			);
+			path = HostApp;
+			sourceTree = "<group>";
+		};
+		80518461B3D6F6D1B96FE1EE /* Driver */ = {
+			isa = PBXGroup;
+			children = (
+				910F27C8F4132917E9F8E996 /* BrlttyUSBDriver.cpp */,
+				337F1136475B4B3C6C49D95E /* BrlttyUSBDriver.iig */,
+			);
+			path = Driver;
+			sourceTree = "<group>";
+		};
+		8D11A5C53309C9F8CBD877F5 = {
+			isa = PBXGroup;
+			children = (
+				80518461B3D6F6D1B96FE1EE /* Driver */,
+				7277285A4373641DF6817E82 /* HostApp */,
+				D976A9E6AA6D6F845069E2CA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D976A9E6AA6D6F845069E2CA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				41C823A57715F6E8F0F6DF9C /* com.brltty.usb-driver.dext */,
+				1DA321ADFEED73A74F62AEA0 /* BrlttyUSBHost.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		43C46C6FAB59DAC6639CEFA8 /* BrlttyUSBDriver */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 39E5DD2AFB9728D25D1B6932 /* Build configuration list for PBXNativeTarget "BrlttyUSBDriver" */;
+			buildPhases = (
+				6046B94C7E48902CF01E2248 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BrlttyUSBDriver;
+			packageProductDependencies = (
+			);
+			productName = BrlttyUSBDriver;
+			productReference = 41C823A57715F6E8F0F6DF9C /* com.brltty.usb-driver.dext */;
+			productType = "com.apple.product-type.driver-extension";
+		};
+		94E20B24CFBE79D601F3AE6E /* BrlttyUSBHost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FEB6551A48740A4D3FE5FDAF /* Build configuration list for PBXNativeTarget "BrlttyUSBHost" */;
+			buildPhases = (
+				5CB67A7F66256732E0BE6380 /* Sources */,
+				4B51669AC619564B9EF78122 /* Embed Dependencies */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C0E93ADCE58A00A13E56F262 /* PBXTargetDependency */,
+			);
+			name = BrlttyUSBHost;
+			packageProductDependencies = (
+			);
+			productName = BrlttyUSBHost;
+			productReference = 1DA321ADFEED73A74F62AEA0 /* BrlttyUSBHost.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3C0C4FF9943921B5AF651332 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					43C46C6FAB59DAC6639CEFA8 = {
+						ProvisioningStyle = Automatic;
+					};
+					94E20B24CFBE79D601F3AE6E = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 59E94A51380CF3F426EC9CAF /* Build configuration list for PBXProject "BrlttyUSB" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 8D11A5C53309C9F8CBD877F5;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D976A9E6AA6D6F845069E2CA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				43C46C6FAB59DAC6639CEFA8 /* BrlttyUSBDriver */,
+				94E20B24CFBE79D601F3AE6E /* BrlttyUSBHost */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5CB67A7F66256732E0BE6380 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				288203771C6D3495F6DF73DD /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6046B94C7E48902CF01E2248 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8321F6581C99A6D634C01CF0 /* BrlttyUSBDriver.cpp in Sources */,
+				C8B944FC02948ED824220BAD /* BrlttyUSBDriver.iig in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C0E93ADCE58A00A13E56F262 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 43C46C6FAB59DAC6639CEFA8 /* BrlttyUSBDriver */;
+			targetProxy = 9BE611898C3C48D289D6E90B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		382BB70F23F219E3844D0AD3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = HostApp/Host.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 79MQ4EMPG6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HostApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.brltty.usb-host";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		396B65B94F1040887204C0F0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		740B307E78D1AC88879FC367 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = HostApp/Host.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 79MQ4EMPG6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HostApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.brltty.usb-host";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		8BBF6EAB17362C3D6BC641CD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Driver/Driver.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 79MQ4EMPG6;
+				DRIVERKIT_DEPLOYMENT_TARGET = 25.4;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IIG_FRAMEWORKS = "DriverKit USBDriverKit";
+				INFOPLIST_FILE = Driver/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"-framework",
+					DriverKit,
+					"-framework",
+					USBDriverKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.brltty.usb-driver";
+				PRODUCT_NAME = "com.brltty.usb-driver";
+				SDKROOT = driverkit;
+				SUPPORTED_PLATFORMS = driverkit;
+			};
+			name = Debug;
+		};
+		8DC36AB3850A3A45D31F3104 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Driver/Driver.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 79MQ4EMPG6;
+				DRIVERKIT_DEPLOYMENT_TARGET = 25.4;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IIG_FRAMEWORKS = "DriverKit USBDriverKit";
+				INFOPLIST_FILE = Driver/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"-framework",
+					DriverKit,
+					"-framework",
+					USBDriverKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.brltty.usb-driver";
+				PRODUCT_NAME = "com.brltty.usb-driver";
+				SDKROOT = driverkit;
+				SUPPORTED_PLATFORMS = driverkit;
+			};
+			name = Release;
+		};
+		A09FB25960D5C38EC975A91F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		39E5DD2AFB9728D25D1B6932 /* Build configuration list for PBXNativeTarget "BrlttyUSBDriver" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8BBF6EAB17362C3D6BC641CD /* Debug */,
+				8DC36AB3850A3A45D31F3104 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		59E94A51380CF3F426EC9CAF /* Build configuration list for PBXProject "BrlttyUSB" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A09FB25960D5C38EC975A91F /* Debug */,
+				396B65B94F1040887204C0F0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FEB6551A48740A4D3FE5FDAF /* Build configuration list for PBXNativeTarget "BrlttyUSBHost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				740B307E78D1AC88879FC367 /* Debug */,
+				382BB70F23F219E3844D0AD3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 3C0C4FF9943921B5AF651332 /* Project object */;
+}
