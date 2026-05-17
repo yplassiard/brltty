@@ -51,3 +51,30 @@ targets:
         DRIVERKIT_DEPLOYMENT_TARGET: "25.4"
         IIG_FRAMEWORKS: "DriverKit USBDriverKit"
         OTHER_LDFLAGS: "-framework DriverKit -framework USBDriverKit"
+    # Regenerates the IOKitPersonalities dict from the canonical brltty
+    # source tree before each build. Output goes into the *built*
+    # Info.plist so the source plist stays human-curated (only the
+    # placeholder Baum entry lives there). To run manually:
+    #   scripts/gen_personalities.sh .. > /tmp/Personalities.plist
+    preBuildScripts:
+      - name: Generate USB braille personalities
+        script: |
+          set -euo pipefail
+          OUT="${DERIVED_FILE_DIR}/Personalities.plist"
+          mkdir -p "${DERIVED_FILE_DIR}"
+          "${PROJECT_DIR}/scripts/gen_personalities.sh" "${PROJECT_DIR}/.." > "${OUT}"
+          echo "wrote ${OUT}"
+        inputFiles:
+          - $(PROJECT_DIR)/scripts/gen_personalities.sh
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/Personalities.plist
+    postBuildScripts:
+      - name: Merge personalities into Info.plist
+        script: |
+          set -euo pipefail
+          TARGET="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+          SRC="${DERIVED_FILE_DIR}/Personalities.plist"
+          /usr/libexec/PlistBuddy -c "Delete :IOKitPersonalities" "${TARGET}" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :IOKitPersonalities dict" "${TARGET}"
+          /usr/libexec/PlistBuddy -c "Merge ${SRC} :IOKitPersonalities" "${TARGET}"
+          echo "merged personalities into ${TARGET}"

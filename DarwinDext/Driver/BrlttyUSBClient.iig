@@ -1,0 +1,34 @@
+/*
+ * DriverKit IOUserClient for brltty's USB dext.
+ *
+ * One instance per userspace IOServiceOpen() — brltty creates one when
+ * it claims a braille display and tears it down on shutdown. All
+ * actual USB I/O still happens in the dext; the client just dispatches
+ * ExternalMethod calls and forwards them to the parent driver.
+ */
+
+#ifndef BRLTTY_USB_CLIENT_IIG
+#define BRLTTY_USB_CLIENT_IIG
+
+#include <Availability.h>
+#include <DriverKit/IOUserClient.iig>
+
+class BrlttyUSBDriver;
+
+class BrlttyUSBClient : public IOUserClient
+{
+public:
+    virtual bool init() override;
+    virtual void free() override;
+
+    virtual kern_return_t Start(IOService *provider) override;
+    virtual kern_return_t Stop(IOService *provider) override;
+
+    virtual kern_return_t ExternalMethod(uint64_t selector,
+                                         IOUserClientMethodArguments *arguments,
+                                         const IOUserClientMethodDispatch *dispatch,
+                                         OSObject *target,
+                                         void *reference) override;
+};
+
+#endif

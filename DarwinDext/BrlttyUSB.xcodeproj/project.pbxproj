@@ -8,9 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		288203771C6D3495F6DF73DD /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD291D5D110B3C643F24C5DF /* main.swift */; };
+		626A018CCE0FA9B96517CA24 /* BrlttyUSBClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EEC2FDD102A2316DD7DC5CC7 /* BrlttyUSBClient.cpp */; };
+		6B8F1C1638BAA37A475F7005 /* BrlttyUSBClient.iig in Sources */ = {isa = PBXBuildFile; fileRef = 68EFCD5C0A102617E203B25E /* BrlttyUSBClient.iig */; };
 		8321F6581C99A6D634C01CF0 /* BrlttyUSBDriver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 910F27C8F4132917E9F8E996 /* BrlttyUSBDriver.cpp */; };
 		C8B944FC02948ED824220BAD /* BrlttyUSBDriver.iig in Sources */ = {isa = PBXBuildFile; fileRef = 337F1136475B4B3C6C49D95E /* BrlttyUSBDriver.iig */; };
-		FB2E8C6BD1B8AF9A9AC58375 /* com.brltty.usb-driver.dext in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 41C823A57715F6E8F0F6DF9C /* com.brltty.usb-driver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FB2E8C6BD1B8AF9A9AC58375 /* BrlttyUSBDriver.dext in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 41C823A57715F6E8F0F6DF9C /* BrlttyUSBDriver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -30,7 +32,7 @@
 			dstPath = Contents/Library/SystemExtensions;
 			dstSubfolderSpec = 1;
 			files = (
-				FB2E8C6BD1B8AF9A9AC58375 /* com.brltty.usb-driver.dext in Embed Dependencies */,
+				FB2E8C6BD1B8AF9A9AC58375 /* BrlttyUSBDriver.dext in Embed Dependencies */,
 			);
 			name = "Embed Dependencies";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -38,12 +40,15 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		131C95507A4D2D48D0EC6D1D /* BrlttyUSBShared.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrlttyUSBShared.h; sourceTree = "<group>"; };
 		1DA321ADFEED73A74F62AEA0 /* BrlttyUSBHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BrlttyUSBHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		337F1136475B4B3C6C49D95E /* BrlttyUSBDriver.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = BrlttyUSBDriver.iig; sourceTree = "<group>"; };
-		41C823A57715F6E8F0F6DF9C /* com.brltty.usb-driver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = "com.brltty.usb-driver.dext"; sourceTree = BUILT_PRODUCTS_DIR; };
+		41C823A57715F6E8F0F6DF9C /* BrlttyUSBDriver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = BrlttyUSBDriver.dext; sourceTree = BUILT_PRODUCTS_DIR; };
+		68EFCD5C0A102617E203B25E /* BrlttyUSBClient.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = BrlttyUSBClient.iig; sourceTree = "<group>"; };
 		910F27C8F4132917E9F8E996 /* BrlttyUSBDriver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BrlttyUSBDriver.cpp; sourceTree = "<group>"; };
 		AF881A55DD8AEFED0632815B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DA3E332D22EC5BDCCF0699E5 /* Host.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Host.entitlements; sourceTree = "<group>"; };
+		EEC2FDD102A2316DD7DC5CC7 /* BrlttyUSBClient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BrlttyUSBClient.cpp; sourceTree = "<group>"; };
 		FD291D5D110B3C643F24C5DF /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -61,8 +66,11 @@
 		80518461B3D6F6D1B96FE1EE /* Driver */ = {
 			isa = PBXGroup;
 			children = (
+				EEC2FDD102A2316DD7DC5CC7 /* BrlttyUSBClient.cpp */,
+				68EFCD5C0A102617E203B25E /* BrlttyUSBClient.iig */,
 				910F27C8F4132917E9F8E996 /* BrlttyUSBDriver.cpp */,
 				337F1136475B4B3C6C49D95E /* BrlttyUSBDriver.iig */,
+				131C95507A4D2D48D0EC6D1D /* BrlttyUSBShared.h */,
 			);
 			path = Driver;
 			sourceTree = "<group>";
@@ -79,7 +87,7 @@
 		D976A9E6AA6D6F845069E2CA /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				41C823A57715F6E8F0F6DF9C /* com.brltty.usb-driver.dext */,
+				41C823A57715F6E8F0F6DF9C /* BrlttyUSBDriver.dext */,
 				1DA321ADFEED73A74F62AEA0 /* BrlttyUSBHost.app */,
 			);
 			name = Products;
@@ -92,7 +100,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 39E5DD2AFB9728D25D1B6932 /* Build configuration list for PBXNativeTarget "BrlttyUSBDriver" */;
 			buildPhases = (
+				C039280FAFC4CF855446AEFA /* Generate USB braille personalities */,
 				6046B94C7E48902CF01E2248 /* Sources */,
+				5FD4828423B4D9942F6E0D2F /* Merge personalities into Info.plist */,
 			);
 			buildRules = (
 			);
@@ -102,7 +112,7 @@
 			packageProductDependencies = (
 			);
 			productName = BrlttyUSBDriver;
-			productReference = 41C823A57715F6E8F0F6DF9C /* com.brltty.usb-driver.dext */;
+			productReference = 41C823A57715F6E8F0F6DF9C /* BrlttyUSBDriver.dext */;
 			productType = "com.apple.product-type.driver-extension";
 		};
 		94E20B24CFBE79D601F3AE6E /* BrlttyUSBHost */ = {
@@ -161,6 +171,47 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		5FD4828423B4D9942F6E0D2F /* Merge personalities into Info.plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Merge personalities into Info.plist";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nTARGET=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nSRC=\"${DERIVED_FILE_DIR}/Personalities.plist\"\n/usr/libexec/PlistBuddy -c \"Delete :IOKitPersonalities\" \"${TARGET}\" 2>/dev/null || true\n/usr/libexec/PlistBuddy -c \"Add :IOKitPersonalities dict\" \"${TARGET}\"\n/usr/libexec/PlistBuddy -c \"Merge ${SRC} :IOKitPersonalities\" \"${TARGET}\"\necho \"merged personalities into ${TARGET}\"\n";
+		};
+		C039280FAFC4CF855446AEFA /* Generate USB braille personalities */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/scripts/gen_personalities.sh",
+			);
+			name = "Generate USB braille personalities";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Personalities.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nOUT=\"${DERIVED_FILE_DIR}/Personalities.plist\"\nmkdir -p \"${DERIVED_FILE_DIR}\"\n\"${PROJECT_DIR}/scripts/gen_personalities.sh\" \"${PROJECT_DIR}/..\" > \"${OUT}\"\necho \"wrote ${OUT}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		5CB67A7F66256732E0BE6380 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -174,6 +225,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				626A018CCE0FA9B96517CA24 /* BrlttyUSBClient.cpp in Sources */,
+				6B8F1C1638BAA37A475F7005 /* BrlttyUSBClient.iig in Sources */,
 				8321F6581C99A6D634C01CF0 /* BrlttyUSBDriver.cpp in Sources */,
 				C8B944FC02948ED824220BAD /* BrlttyUSBDriver.iig in Sources */,
 			);
@@ -196,7 +249,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = HostApp/Host.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 79MQ4EMPG6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HostApp/Info.plist;
@@ -272,7 +324,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = HostApp/Host.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 79MQ4EMPG6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HostApp/Info.plist;
@@ -290,7 +341,6 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Driver/Driver.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 79MQ4EMPG6;
 				DRIVERKIT_DEPLOYMENT_TARGET = 25.4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -300,12 +350,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-framework",
-					DriverKit,
-					"-framework",
-					USBDriverKit,
-				);
+				OTHER_LDFLAGS = "-framework DriverKit -framework USBDriverKit";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.brltty.usb-driver";
 				PRODUCT_NAME = "com.brltty.usb-driver";
 				SDKROOT = driverkit;
@@ -318,7 +363,6 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Driver/Driver.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 79MQ4EMPG6;
 				DRIVERKIT_DEPLOYMENT_TARGET = 25.4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -328,12 +372,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-framework",
-					DriverKit,
-					"-framework",
-					USBDriverKit,
-				);
+				OTHER_LDFLAGS = "-framework DriverKit -framework USBDriverKit";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.brltty.usb-driver";
 				PRODUCT_NAME = "com.brltty.usb-driver";
 				SDKROOT = driverkit;
