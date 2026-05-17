@@ -8,6 +8,7 @@ options:
 settings:
   base:
     CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: "79MQ4EMPG6"
     SWIFT_VERSION: "5.0"
 
 targets:
