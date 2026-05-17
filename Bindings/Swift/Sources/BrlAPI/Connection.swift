@@ -55,9 +55,10 @@ extension BrlAPI {
                     var actual = brlapi_connectionSettings_t(auth: nil, host: nil)
                     let fd = brlapi__openConnection(handle, &desired, &actual)
                     if fd == BRLAPI_INVALID_FILE_DESCRIPTOR {
-                        let err = Error.current()
-                        free(storage)
-                        throw err
+                        // All stored properties are assigned by this point, so
+                        // deinit will run and free `handleStorage` for us —
+                        // an explicit free here would double-free.
+                        throw Error.current()
                     }
                     isOpen = true
                 }
