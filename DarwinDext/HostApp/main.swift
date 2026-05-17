@@ -47,8 +47,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = CommandLine.arguments
         guard args.count >= 2 else {
-            NSLog("brltty-host: usage: BrlttyUSBHost activate|deactivate|status")
+            NSLog("brltty-host: usage: BrlttyUSBHost activate|deactivate|status|probe")
             exit(2)
+        }
+
+        // Probe runs synchronously and exits — no run loop needed.
+        // Handled here (rather than below) so we don't even spin up
+        // the AppKit machinery when all we want is an IPC check.
+        if args[1] == "probe" {
+            runDextProbe()
         }
 
         let queue = DispatchQueue.main

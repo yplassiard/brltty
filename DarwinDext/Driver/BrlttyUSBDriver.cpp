@@ -180,6 +180,7 @@ BrlttyUSBDriver::CopyInterface()
 kern_return_t
 IMPL(BrlttyUSBDriver, NewUserClient)
 {
+    LOG("NewUserClient: type=%u — kernel let the open through", type);
     (void)type;
 
     IOService *created = nullptr;

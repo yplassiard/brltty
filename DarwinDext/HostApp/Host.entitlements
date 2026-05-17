@@ -4,5 +4,17 @@
 <dict>
   <key>com.apple.developer.system-extension.install</key>
   <true/>
+  <!--
+    To enable end-to-end IPC testing (BrlttyUSBHost probe + the brltty
+    userland transport that talks to this dext), add:
+        <key>com.apple.developer.driverkit.userclient-access</key>
+        <array><string>com.brltty.usb-driver</string></array>
+
+    The entitlement is restricted — Apple has to grant the
+    "DriverKit UserClient Access" capability to the team + bundle id
+    at https://developer.apple.com/contact/request/system-extension/
+    before Xcode auto-signing will accept it. Without it the host
+    builds but IOServiceOpen returns kIOReturnNotPermitted at runtime.
+  -->
 </dict>
 </plist>
