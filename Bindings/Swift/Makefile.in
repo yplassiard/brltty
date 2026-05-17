@@ -1,0 +1,56 @@
+###############################################################################
+# libbrlapi - A library providing access to braille terminals for applications.
+#
+# Copyright (C) 2005-2026 by The BRLTTY Developers.
+#
+# libbrlapi comes with ABSOLUTELY NO WARRANTY.
+#
+# This is free software, placed under the terms of the
+# GNU Lesser General Public License, as published by the Free Software
+# Foundation; either version 2.1 of the License, or (at your option) any
+# later version. Please see the file LICENSE-LGPL for details.
+#
+# Web Page: http://brltty.app/
+###############################################################################
+
+include $(SRC_TOP)bindings.mk
+
+SWIFT = @SWIFT@
+SWIFT_OK = @SWIFT_OK@
+SWIFT_PACKAGE_DIR = $(SRC_DIR)
+
+# Building the Swift binding goes through the Swift Package Manager — the
+# brltty make system just delegates. We keep all targets here even when
+# Swift isn't available so the standard top-level rules (all/install/
+# uninstall/clean) still succeed; the recipes turn into no-ops in that
+# case. Set SWIFT_OK=true at configure time to flip them on.
+
+all:
+	@if test "$(SWIFT_OK)" = "true"; then \
+		echo "  SWIFT BUILD $(SWIFT_PACKAGE_DIR)"; \
+		"$(SWIFT)" build --package-path "$(SWIFT_PACKAGE_DIR)" -c release; \
+	else \
+		echo "  SKIP        Swift bindings (configure: SWIFT_OK=$(SWIFT_OK))"; \
+	fi
+
+test check:
+	@if test "$(SWIFT_OK)" = "true"; then \
+		"$(SWIFT)" test --package-path "$(SWIFT_PACKAGE_DIR)"; \
+	fi
+
+# Swift libraries are usually consumed via SwiftPM dependency resolution,
+# not copied into a system prefix. Installation is therefore a no-op by
+# default; downstream packagers can override INSTALL_SWIFT_TARGET if they
+# need a custom drop location.
+
+install: all
+	@true
+
+uninstall:
+	@true
+
+clean::
+	-rm -rf .build .swiftpm
+
+distclean::
+	-rm -rf .build .swiftpm Package.resolved
