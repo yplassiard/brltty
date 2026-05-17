@@ -27,6 +27,7 @@ m4_include([Bindings/Lisp/bindings.m4])
 m4_include([Bindings/Lua/bindings.m4])
 m4_include([Bindings/OCaml/bindings.m4])
 m4_include([Bindings/Python/bindings.m4])
+m4_include([Bindings/Swift/bindings.m4])
 m4_include([Bindings/Tcl/bindings.m4])
 
 copyright="© 1995-2026 by The BRLTTY Developers"
@@ -760,6 +761,7 @@ BRLTTY_ARG_DISABLE(
       BRLTTY_BINDINGS([Lua])
       BRLTTY_BINDINGS([OCaml])
       BRLTTY_BINDINGS([Python])
+      BRLTTY_BINDINGS([Swift])
       BRLTTY_BINDINGS([Tcl])
 
       test -n "${api_bindings}" && {

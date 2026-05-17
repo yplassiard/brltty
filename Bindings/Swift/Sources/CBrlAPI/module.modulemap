@@ -1,0 +1,5 @@
+module CBrlAPI [system] {
+    umbrella header "CBrlAPI.h"
+    link "brlapi"
+    export *
+}
