@@ -77,17 +77,28 @@ final class BrlAPITests: XCTestCase {
     }
 
     func testMacOSScopeTtyMatchesCImplementation() {
+        // Values computed independently against the C side's 16+16
+        // encoding (djb2 high half + tab low half). Drift here means
+        // brlapi routing for Mac apps silently breaks.
         XCTAssertEqual(
             BrlAPI.MacOSScope.tty(forApp: "com.apple.Terminal", tab: 1),
-            Int32(bitPattern: 0x969006a3)
+            Int32(bitPattern: 0x8f680001)
         )
         XCTAssertEqual(
             BrlAPI.MacOSScope.tty(forApp: "com.apple.Safari", tab: 1),
-            Int32(bitPattern: 0xc7c91a89)
+            Int32(bitPattern: 0x3b420001)
         )
         XCTAssertEqual(
             BrlAPI.MacOSScope.tty(forApp: "io.github.brltty.brltty", tab: 1),
-            1742939779
+            Int32(bitPattern: 0x2f480001)
+        )
+        // Same bundle, different tab — the +1 increment flows
+        // entirely through the low 16 bits, leaving the bundle half
+        // (0x8f68) untouched. brltty's "next vt" logic relies on
+        // exactly this property.
+        XCTAssertEqual(
+            BrlAPI.MacOSScope.tty(forApp: "com.apple.Terminal", tab: 2),
+            Int32(bitPattern: 0x8f680002)
         )
     }
 
