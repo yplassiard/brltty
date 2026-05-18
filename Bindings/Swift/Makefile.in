@@ -15,6 +15,16 @@
 
 include $(SRC_TOP)bindings.mk
 
+# bindings.mk -> prologue.mk does `include $(SRC_DIR)/reldeps.mk`.
+# Other bindings have their per-dir reldeps.mk populated from the
+# top-level absdeps.mk because they ship a bindings.c that the make
+# system tracks. Swift compiles via SwiftPM, so there are no per-file
+# C deps to track and reldeps.mk would always be empty. Create it
+# lazily via this rule so the include succeeds on a fresh checkout
+# without relying on a generator we don't otherwise need.
+$(SRC_DIR)/reldeps.mk:
+	@touch $@
+
 SWIFT = @SWIFT@
 SWIFT_OK = @SWIFT_OK@
 SWIFT_PACKAGE_DIR = $(SRC_DIR)
