@@ -60,6 +60,49 @@ final class BrlAPITests: XCTestCase {
         XCTAssertEqual(BrlAPI.Connection.Cursor.cell(7).rawForTesting, 7)
     }
 
+    // MARK: - macOS scope hash
+    //
+    // Reference values were computed independently (Python djb2) and
+    // also against Drivers/Screen/MacOSAccessibility/screen.m. Any
+    // drift between client and server here means brlapi routing
+    // silently breaks for app-scoped clients, so the tests pin the
+    // numbers explicitly rather than re-deriving them from
+    // BrlAPI.MacOSScope.
+
+    func testMacOSScopeDjb2KnownValues() {
+        // Empty buffer is djb2's seed (5381).
+        XCTAssertEqual(BrlAPI.MacOSScope.djb2(Array("".utf8)), 5381)
+        XCTAssertEqual(BrlAPI.MacOSScope.djb2(Array("a".utf8)), 177604)
+        XCTAssertEqual(BrlAPI.MacOSScope.djb2(Array("abc".utf8)), 193409669)
+    }
+
+    func testMacOSScopeTtyMatchesCImplementation() {
+        XCTAssertEqual(
+            BrlAPI.MacOSScope.tty(forApp: "com.apple.Terminal", tab: 1),
+            Int32(bitPattern: 0x969006a3)
+        )
+        XCTAssertEqual(
+            BrlAPI.MacOSScope.tty(forApp: "com.apple.Safari", tab: 1),
+            Int32(bitPattern: 0xc7c91a89)
+        )
+        XCTAssertEqual(
+            BrlAPI.MacOSScope.tty(forApp: "io.github.brltty.brltty", tab: 1),
+            1742939779
+        )
+    }
+
+    func testMacOSScopeAvoidsSentinel() {
+        // Synthetic input whose djb2 happens to be 0xFFFFFFFF would
+        // collide with BrlAPI's "no specific tty" sentinel. We can't
+        // easily craft one, so just verify that the post-hash
+        // sentinel-avoidance keeps the slot a stable non-sentinel
+        // int for the common cases.
+        let slots = ["com.apple.Terminal", "com.apple.Safari", "com.apple.Finder"].map {
+            BrlAPI.MacOSScope.tty(forApp: $0, tab: 1)
+        }
+        XCTAssertFalse(slots.contains(-1)) // -1 == 0xFFFFFFFF == sentinel
+    }
+
     // MARK: - Live tests
 
     func testLiveConnection() throws {
