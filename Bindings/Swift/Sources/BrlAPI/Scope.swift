@@ -38,22 +38,31 @@ extension BrlAPI {
             return h
         }
 
-        /// Compute the BrlAPI tty slot the macOS screen driver will
-        /// emit when `bundleID` is frontmost and brltty considers
-        /// itself on tab `tab`. The format mirrors the C side:
-        /// "<bundleID>:<tab>" hashed with djb2, with `0xFFFFFFFF`
-        /// (the BrlAPI sentinel for "no specific tty") folded onto
-        /// another value so it can never escape.
+        /// Compute the BrlAPI tty slot the macOS screen driver emits
+        /// when `bundleID` is frontmost and brltty considers itself
+        /// on tab `tab`. The wire format mirrors the C side exactly:
+        ///
+        ///     bits 31..16 = djb2(bundleID) & 0xFFFF
+        ///     bits 15.. 0 = tab counter (clamped to 0..0xFFFF)
+        ///
+        /// Splitting bundle and tab into separate halves matters
+        /// because brltty's "next vt" command does `current + 1` on
+        /// the server side — see
+        /// Drivers/Screen/MacOSAccessibility/screen.m for the
+        /// matching derivation. `0xFFFFFFFF` is reserved (BrlAPI's
+        /// "no specific tty" sentinel) so we fold any combo that
+        /// lands there onto another value.
         public static func tty(forApp bundleID: String, tab: Int = 1) -> Int32 {
-            let composite = "\(bundleID):\(tab)"
-            var hash = djb2(composite.utf8)
-            if hash == 0xFFFFFFFF { hash ^= 1 }
-            // The BrlAPI wire field is an int. The bit pattern is
+            let bundleHash16 = djb2(bundleID.utf8) & 0xFFFF
+            let tab16 = UInt32(tab & 0xFFFF)
+            var combined = (bundleHash16 << 16) | tab16
+            if combined == 0xFFFFFFFF { combined ^= 1 }
+            // BrlAPI carries the value as `int`. The bit pattern is
             // preserved across the cast — the server compares on the
-            // raw 32 bits — so a hash >= 0x80000000 becomes a
-            // legitimate negative int and still matches what the mo
-            // driver emits.
-            return Int32(bitPattern: hash)
+            // raw 32 bits — so a combined value >= 0x80000000 becomes
+            // a negative int and still matches what the mo driver
+            // emits.
+            return Int32(bitPattern: combined)
         }
 
         /// Slot for the bundle the calling binary belongs to, if any.
