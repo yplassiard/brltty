@@ -1,0 +1,81 @@
+name: BrlttyUSB
+options:
+  bundleIdPrefix: com.brltty
+  deploymentTarget:
+    macOS: "12.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: "79MQ4EMPG6"
+    SWIFT_VERSION: "5.0"
+
+targets:
+  BrlttyUSBHost:
+    type: application
+    platform: macOS
+    sources:
+      - HostApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.brltty.usb-host
+        INFOPLIST_FILE: HostApp/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: HostApp/Host.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+    dependencies:
+      - target: BrlttyUSBDriver
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/SystemExtensions
+
+  BrlttyUSBDriver:
+    type: driver-extension
+    platform: macOS
+    sources:
+      - path: Driver
+        includes:
+          - "*.cpp"
+          - "*.iig"
+          - "*.h"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.brltty.usb-driver
+        PRODUCT_NAME: com.brltty.usb-driver
+        INFOPLIST_FILE: Driver/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Driver/Driver.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        SDKROOT: driverkit
+        SUPPORTED_PLATFORMS: driverkit
+        DRIVERKIT_DEPLOYMENT_TARGET: "25.4"
+        IIG_FRAMEWORKS: "DriverKit USBDriverKit"
+        OTHER_LDFLAGS: "-framework DriverKit -framework USBDriverKit"
+    # Regenerates the IOKitPersonalities dict from the canonical brltty
+    # source tree before each build. Output goes into the *built*
+    # Info.plist so the source plist stays human-curated (only the
+    # placeholder Baum entry lives there). To run manually:
+    #   scripts/gen_personalities.sh .. > /tmp/Personalities.plist
+    preBuildScripts:
+      - name: Generate USB braille personalities
+        script: |
+          set -euo pipefail
+          OUT="${DERIVED_FILE_DIR}/Personalities.plist"
+          mkdir -p "${DERIVED_FILE_DIR}"
+          "${PROJECT_DIR}/scripts/gen_personalities.sh" "${PROJECT_DIR}/.." > "${OUT}"
+          echo "wrote ${OUT}"
+        inputFiles:
+          - $(PROJECT_DIR)/scripts/gen_personalities.sh
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/Personalities.plist
+    postBuildScripts:
+      - name: Merge personalities into Info.plist
+        script: |
+          set -euo pipefail
+          TARGET="${TARGET_BUILD_DIR}/${INFOPLIST_PATH}"
+          SRC="${DERIVED_FILE_DIR}/Personalities.plist"
+          /usr/libexec/PlistBuddy -c "Delete :IOKitPersonalities" "${TARGET}" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :IOKitPersonalities dict" "${TARGET}"
+          /usr/libexec/PlistBuddy -c "Merge ${SRC} :IOKitPersonalities" "${TARGET}"
+          echo "merged personalities into ${TARGET}"

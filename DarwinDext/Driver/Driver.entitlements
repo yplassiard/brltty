@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.developer.driverkit</key>
+  <true/>
+  <!--
+    Must mirror the embedded provisioning profile exactly — AMFI does a
+    strict comparison, not a containment check. The profile is wildcard
+    (idVendor = "*"), so the entitlement here is wildcard too. Per-VID/PID
+    restriction lives in the IOKitPersonalities matching dict instead.
+  -->
+  <key>com.apple.developer.driverkit.transport.usb</key>
+  <array>
+    <dict>
+      <key>idVendor</key>
+      <string>*</string>
+    </dict>
+  </array>
+  <key>com.apple.developer.driverkit.allow-third-party-userclients</key>
+  <true/>
+</dict>
+</plist>

@@ -1574,6 +1574,32 @@ BRLTTY_ARG_PACKAGE([usb], [USB I/O], [winusb libusb-1.0 libusb], [dnl
       ;;
 ])
 
+# When --enable-darwin-dext is given, route USB I/O through the brltty
+# DriverKit dext (DarwinDext/) instead of the default IOUSBLib-based
+# transport. The dext claims the device at the IOUSBHostDevice level,
+# which is the only way to keep AppleHID from grabbing braille USB-HID
+# terminals. Requires the dext to be installed and a Mac client process
+# code-signed with the com.apple.developer.driverkit.userclient-access
+# entitlement listing com.brltty.usb-driver. See DarwinDext/README for
+# the signing dance.
+AC_ARG_ENABLE([darwin-dext],
+   [AS_HELP_STRING([--enable-darwin-dext],
+      [route USB I/O through the brltty DriverKit dext on macOS])],
+   [enable_darwin_dext="${enableval}"],
+   [enable_darwin_dext="no"])
+
+if test "${enable_darwin_dext}" = "yes"
+then
+   if test "${usb_package}" = "darwin"
+   then
+      usb_package="darwin_dext"
+      usb_includes="${usb_includes} -I\$(SRC_TOP)DarwinDext/Driver"
+      AC_MSG_NOTICE([USB transport: routing through brltty DriverKit dext])
+   else
+      AC_MSG_ERROR([--enable-darwin-dext only works on macOS (usb_package=darwin)])
+   fi
+fi
+
 BRLTTY_ARG_PACKAGE([bluetooth], [Bluetooth I/O], [], [dnl
    *android*)
       bluetooth_package="android"

@@ -1,0 +1,33 @@
+/*
+ * DriverKit interface for the brltty USB user-space driver.
+ *
+ * This file is processed by the iig tool to generate IPC stubs for
+ * communicating between the dext and any IOUserClient that opens it.
+ */
+
+#ifndef BRLTTY_USB_DRIVER_IIG
+#define BRLTTY_USB_DRIVER_IIG
+
+#include <Availability.h>
+#include <DriverKit/IOService.iig>
+#include <USBDriverKit/IOUSBHostInterface.iig>
+
+class BrlttyUSBDriver : public IOService
+{
+public:
+    virtual bool init() override;
+    virtual void free() override;
+
+    virtual kern_return_t Start(IOService *provider) override;
+    virtual kern_return_t Stop(IOService *provider) override;
+
+    virtual kern_return_t NewUserClient(uint32_t type,
+                                        IOUserClient **userClient) override;
+
+    /* Returns a retained reference to the matched IOUSBHostInterface,
+     * or nullptr if the driver hasn't reached Start() yet. The caller
+     * is responsible for releasing the returned pointer. */
+    IOUSBHostInterface *CopyInterface() LOCALONLY;
+};
+
+#endif
