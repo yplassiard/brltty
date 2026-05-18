@@ -91,6 +91,23 @@ final class BrlAPITests: XCTestCase {
         )
     }
 
+    func testMacOSScopeCurrentApp() {
+        // Whatever Bundle.main resolves to in the test runner (some
+        // form of swiftpm test bundle), the helper must either return
+        // a deterministic slot or nil — never crash, never randomise.
+        let a = BrlAPI.MacOSScope.ttyForCurrentApp(tab: 1)
+        let b = BrlAPI.MacOSScope.ttyForCurrentApp(tab: 1)
+        XCTAssertEqual(a, b, "ttyForCurrentApp must be deterministic across calls")
+        // If we got a slot, it must equal the value our static
+        // `tty(forApp:)` computes from the same bundle id — i.e. the
+        // convenience is just sugar over the explicit form.
+        if let bundleID = Bundle.main.bundleIdentifier {
+            XCTAssertEqual(a, BrlAPI.MacOSScope.tty(forApp: bundleID, tab: 1))
+        } else {
+            XCTAssertNil(a)
+        }
+    }
+
     func testMacOSScopeAvoidsSentinel() {
         // Synthetic input whose djb2 happens to be 0xFFFFFFFF would
         // collide with BrlAPI's "no specific tty" sentinel. We can't

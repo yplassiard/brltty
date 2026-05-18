@@ -55,6 +55,17 @@ extension BrlAPI {
             // driver emits.
             return Int32(bitPattern: hash)
         }
+
+        /// Slot for the bundle the calling binary belongs to, if any.
+        ///
+        /// Returns `nil` when `Bundle.main` has no `CFBundleIdentifier`
+        /// — typical for raw CLI tools and SwiftPM executables built
+        /// without an `Info.plist`. Add one (or fall back to the
+        /// explicit `tty(forApp:)`) when you hit this case.
+        public static func ttyForCurrentApp(tab: Int = 1) -> Int32? {
+            guard let bundleID = Bundle.main.bundleIdentifier else { return nil }
+            return tty(forApp: bundleID, tab: tab)
+        }
     }
 }
 
@@ -76,5 +87,22 @@ extension BrlAPI.Connection {
                              driver: String? = nil) throws {
         let scope = BrlAPI.MacOSScope.tty(forApp: bundleID, tab: tab)
         try enterTtyMode(tty: Int(scope), driver: driver)
+    }
+
+    /// Convenience for the common case where an app wants braille
+    /// scoped to itself — pulls the bundle id from `Bundle.main`.
+    ///
+    /// Throws `BrlAPI.Error.invalidArgument` if the calling binary
+    /// has no `CFBundleIdentifier`. CLI tools and bare SwiftPM
+    /// executables hit this; either give them an `Info.plist` or
+    /// call `enterTtyMode(forApp:)` with an explicit id.
+    public func enterTtyModeForCurrentApp(tab: Int = 1,
+                                          driver: String? = nil) throws {
+        guard let slot = BrlAPI.MacOSScope.ttyForCurrentApp(tab: tab) else {
+            throw BrlAPI.Error.invalidArgument(
+                "Bundle.main has no CFBundleIdentifier; use enterTtyMode(forApp:) instead"
+            )
+        }
+        try enterTtyMode(tty: Int(slot), driver: driver)
     }
 }

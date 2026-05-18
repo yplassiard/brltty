@@ -3,8 +3,9 @@
 //
 // Usage:
 //
-//     swift run BrlAPIExample                    # broadcast mode (tty = -1)
-//     swift run BrlAPIExample com.apple.Terminal # scope to a specific Mac app
+//     swift run BrlAPIExample                       # broadcast (tty = -1)
+//     swift run BrlAPIExample --self                # scope to *this* binary
+//     swift run BrlAPIExample com.apple.Terminal    # scope to another app
 //     swift run BrlAPIExample com.apple.Terminal 2  # …on its tab 2
 //
 // Opens a connection to a running brltty, prints display geometry +
@@ -39,25 +40,30 @@ func run() throws {
     }
 
     // CLI args:
-    //   argv[1] = bundle id (e.g. "com.apple.Terminal"), optional
-    //   argv[2] = tab number (Int), optional, defaults to 1
+    //   "--self"             scope to Bundle.main (the running binary)
+    //   <bundle-id> [<tab>]  scope to another app (and optional tab)
+    //   (none)               broadcast (tty = -1)
     let args = CommandLine.arguments.dropFirst()
-    let bundleID = args.first
-    let tab = args.dropFirst().first.flatMap(Int.init) ?? 1
+    let firstArg = args.first
 
-    if let bundleID {
-        // Scoped: brltty will only route keystrokes here when this
-        // Mac app is frontmost (and the mo driver agrees on the tab
-        // counter — see Drivers/Screen/MacOSAccessibility/screen.m).
-        try connection.enterTtyMode(forApp: bundleID, tab: tab)
-        let slot = BrlAPI.MacOSScope.tty(forApp: bundleID, tab: tab)
-        print("scoped to \(bundleID) tab \(tab) — tty slot 0x\(String(UInt32(bitPattern: slot), radix: 16))")
+    var scopeLabel = "any tty (broadcast)"
+    let bundleID: String?
+
+    if firstArg == "--self" {
+        try connection.enterTtyModeForCurrentApp()
+        bundleID = Bundle.main.bundleIdentifier
+        scopeLabel = bundleID.map { "self (\($0))" } ?? "self (no bundle id)"
+    } else if let bid = firstArg {
+        let tab = args.dropFirst().first.flatMap(Int.init) ?? 1
+        try connection.enterTtyMode(forApp: bid, tab: tab)
+        let slot = BrlAPI.MacOSScope.tty(forApp: bid, tab: tab)
+        bundleID = bid
+        scopeLabel = "\(bid) tab \(tab) — tty slot 0x\(String(UInt32(bitPattern: slot), radix: 16))"
     } else {
-        // Broadcast: receive every keystroke regardless of which app
-        // is focused. Convenient for ad-hoc testing.
         try connection.enterTtyMode(tty: -1)
-        print("scoped to any tty (broadcast)")
+        bundleID = nil
     }
+    print("scoped to \(scopeLabel)")
     defer { try? connection.leaveTtyMode() }
 
     let greeting = bundleID.map { "Hello, BrlAPI — \($0)" } ?? "Hello, BrlAPI"
