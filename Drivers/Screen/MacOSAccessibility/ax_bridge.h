@@ -112,6 +112,35 @@ size_t ax_fingerprint(char *out_buf, size_t out_len);
 size_t ax_snapshot_lines(char *out_buf, size_t out_len,
                          int *out_row, int *out_col);
 
+// ---- System clipboard bridge ----------------------------------------------
+// macOS's NSPasteboard exposes no public push-event API for daemons, so the
+// brltty screen driver polls ax_pasteboard_change_count() to catch external
+// modifications. ax_pasteboard_set() returns the changeCount that resulted
+// from OUR write — callers store that and treat any later value strictly
+// greater than it as an external change.
+
+// Push UTF-8 string to NSPasteboard.generalPasteboard. Returns the new
+// changeCount. Pass NULL or "" to clear the pasteboard.
+long ax_pasteboard_set(const char *utf8);
+
+// Per-tab diagnostic log. Resolves the current AX tab via
+// ax_get_active_tab, opens /tmp/screen-mo-NN.log (zero-padded) lazily
+// in append mode, and writes the timestamped line. When no tab can be
+// determined (no AX tab group on the frontmost window) the message
+// lands in /tmp/screen-mo-00.log. Doesn't go through brltty's main log
+// — these traces are bursty per-snapshot and would drown the
+// non-driver lines.
+void mo_log(const char *fmt, ...);
+
+// Current NSPasteboard.generalPasteboard.changeCount. Cheap; safe to poll
+// at sub-second cadence.
+long ax_pasteboard_change_count(void);
+
+// Copy the current pasteboard string into out_buf (UTF-8, NUL-terminated).
+// Returns the byte length written (excluding terminator), 0 if the
+// pasteboard has no string content.
+size_t ax_pasteboard_get_string(char *out_buf, size_t out_len);
+
 #ifdef __cplusplus
 }
 #endif

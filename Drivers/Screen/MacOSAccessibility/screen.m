@@ -23,11 +23,16 @@
 #include <wchar.h>
 #include <wctype.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #include "log.h"
 #include "scr_driver.h"
 #include "async_handle.h"
 #include "async_io.h"
+#include "async_alarm.h"
+#include "clipboard.h"
+#include "report.h"
+#include "brlapi_param.h"
 #include "ax_bridge.h"
 
 // Hard upper bounds to keep buffer sizes sane on rogue input.
@@ -47,15 +52,93 @@ static int screenCapacity = 0;
 static int cursorRow = 0;
 static int cursorCol = 0;
 
+/* Per-row "where did the rendered text actually end on this row"
+ * tracker, updated by renderTextIntoGrid. Cells beyond rowEndCol[r]
+ * are the fillScreenWithSpaces() padding, not real text — they must
+ * not be confused with "trailing whitespace the user typed".
+ * Sized to SCREEN_MAX_ROWS so we never index out of bounds. */
+static int rowEndCol[SCREEN_MAX_ROWS] = {0};
+
 static char lastFingerprint[2048] = {0};
 static AsyncHandle wakeMonitor = NULL;
 static int wakeFd = -1;
+
+/* ---- System clipboard ↔ brltty clipboard bridge --------------------------
+ *
+ * Mirrors what the Linux AtSpi2 driver does with X selection: keep
+ * brltty's internal clipboard in sync with the host's general
+ * pasteboard so a Cmd+C from any app lands in brltty, and a brltty
+ * BRL_CMD_COPY shows up on the system pasteboard for Cmd+V to consume.
+ *
+ * macOS has no push notification for NSPasteboard, so we poll the
+ * changeCount on a 500 ms alarm. The changeCount we receive from our
+ * own writes is recorded in clipboardLastSeenChangeCount; anything
+ * strictly greater is treated as an external change. The
+ * suppressOwnClipboardReport flag breaks the inverse loop: when our
+ * poll pushes external content into brltty via setMainClipboardContent,
+ * the resulting REPORT_API_PARAMETER_UPDATED would otherwise echo us
+ * right back to NSPasteboard.
+ */
+static AsyncHandle clipboardPollAlarm = NULL;
+static ReportListenerInstance *clipboardReportListener = NULL;
+static long clipboardLastSeenChangeCount = 0;
+static int suppressOwnClipboardReport = 0;
+
+#define CLIPBOARD_POLL_INTERVAL_MS 500
+#define CLIPBOARD_MAX_BYTES        (1024 * 1024)  // 1 MB cap on payload size
 
 static int
 handleWakeFromObserver(const AsyncMonitorCallbackParameters *parameters) {
   ax_observer_drain(wakeFd);
   mainScreenUpdated();
   return 1; // keep monitoring
+}
+
+/* Pull a fresh string from NSPasteboard and shove it into brltty's
+ * clipboard. The suppress flag tells our REPORT_LISTENER below to
+ * ignore the param-updated event we just triggered (so we don't loop
+ * the same content back to NSPasteboard).
+ */
+static void
+pullSystemClipboardIntoBrltty(void) {
+  static char buf[CLIPBOARD_MAX_BYTES];
+  size_t n = ax_pasteboard_get_string(buf, sizeof(buf));
+  if (n == 0) return;  // empty pasteboard — don't blow away brltty's own
+  suppressOwnClipboardReport = 1;
+  setMainClipboardContent(buf);
+  suppressOwnClipboardReport = 0;
+}
+
+/* Periodic alarm: cheap changeCount check, only fetch + push on
+ * detected change. The 500 ms cadence is far below human copy-paste
+ * latency and the polling itself is microseconds. */
+static void
+clipboardPollAlarmCallback(const AsyncAlarmCallbackParameters *parameters) {
+  long now = ax_pasteboard_change_count();
+  if (now > clipboardLastSeenChangeCount) {
+    clipboardLastSeenChangeCount = now;
+    pullSystemClipboardIntoBrltty();
+  }
+  /* Re-arm. asyncResetAlarmIn keeps the same handle alive. */
+  asyncResetAlarmIn(clipboardPollAlarm, CLIPBOARD_POLL_INTERVAL_MS);
+}
+
+/* brltty core fires this when its internal clipboard mutates (typically
+ * after BRL_CMD_COPY / BRL_CMD_APND). Push the content to NSPasteboard
+ * so Cmd+V outside brltty picks it up. */
+static
+REPORT_LISTENER(moClipboardReportListener) {
+  if (parameters->reportIdentifier != REPORT_API_PARAMETER_UPDATED) return;
+  const ApiParameterUpdatedReport *report = parameters->reportData;
+  if (!report || report->parameter != BRLAPI_PARAM_CLIPBOARD_CONTENT) return;
+  if (suppressOwnClipboardReport) return;
+
+  char *content = getMainClipboardContent();
+  if (!content) return;
+  if (*content) {
+    clipboardLastSeenChangeCount = ax_pasteboard_set(content);
+  }
+  free(content);
 }
 
 static void
@@ -152,6 +235,7 @@ measureText(const char *text, int *outRows, int *outCols) {
 static void
 renderTextIntoGrid(const char *text) {
   fillScreenWithSpaces();
+  for (int r = 0; r < SCREEN_MAX_ROWS; r += 1) rowEndCol[r] = 0;
   if (!text || !*text) return;
 
   int row = 0;
@@ -182,6 +266,7 @@ renderTextIntoGrid(const char *text) {
     }
     screenBuffer[row * screenCols + col] = (wchar_t)cp;
     col += 1;
+    if (row < SCREEN_MAX_ROWS && col > rowEndCol[row]) rowEndCol[row] = col;
   }
 }
 
@@ -220,12 +305,41 @@ construct_MacOSAccessibilityScreen(void) {
       wakeMonitor = NULL;
     }
   }
+
+  /* Clipboard bridge: prime the changeCount so we don't mistake the
+   * initial pasteboard state for an external change, then arm the
+   * periodic poll + the brltty-side listener. */
+  clipboardLastSeenChangeCount = ax_pasteboard_change_count();
+  if (!asyncNewRelativeAlarm(&clipboardPollAlarm,
+                             CLIPBOARD_POLL_INTERVAL_MS,
+                             clipboardPollAlarmCallback, NULL)) {
+    logMessage(LOG_WARNING, "mo: failed to arm clipboard poll alarm");
+    clipboardPollAlarm = NULL;
+  }
+  clipboardReportListener = registerReportListener(
+      REPORT_API_PARAMETER_UPDATED, moClipboardReportListener, NULL);
+  if (!clipboardReportListener) {
+    logMessage(LOG_WARNING, "mo: failed to register clipboard listener");
+  } else {
+    logMessage(LOG_DEBUG,
+      "mo: construct: clipboard bridge armed (poll=%d ms, initial cc=%ld)",
+      CLIPBOARD_POLL_INTERVAL_MS, clipboardLastSeenChangeCount);
+  }
+
   logMessage(LOG_DEBUG, "mo: construct: returning success");
   return 1;
 }
 
 static void
 destruct_MacOSAccessibilityScreen(void) {
+  if (clipboardReportListener) {
+    unregisterReportListener(clipboardReportListener);
+    clipboardReportListener = NULL;
+  }
+  if (clipboardPollAlarm) {
+    asyncCancelRequest(clipboardPollAlarm);
+    clipboardPollAlarm = NULL;
+  }
   if (wakeMonitor) {
     asyncCancelRequest(wakeMonitor);
     wakeMonitor = NULL;
@@ -237,29 +351,55 @@ destruct_MacOSAccessibilityScreen(void) {
   screenCapacity = 0;
 }
 
-/* When Terminal.app fires AXSelectedTextChanged *before* the new prompt
- * is published in AXStringForRange (after Enter), we capture a transient
- * state where the cursor sits on an empty row beyond column 0. This flag
- * tells poll() to force one more refresh shortly after, up to a few
- * retries — cheap, targeted, and self-clearing when the state settles. */
+/* macOS AX delivers per-attribute notifications independently:
+ * AXSelectedTextChanged (caret moved) and AXValueChanged (text content
+ * changed) can fire in either order for a single keystroke. When the
+ * caret notification arrives first we snapshot a transient state where
+ *   - kAXSelectedTextRangeAttribute reports the *new* caret offset, but
+ *   - AXStringForRange(visibleRange) still returns the *old* text.
+ * The cursor then lands at a column where there's no rendered text
+ * yet — visible on the braille line as "caret at right position but
+ * the surrounding text is missing".
+ *
+ * We can't synchronise those two reads on macOS, so instead we detect
+ * the inconsistency after rendering and arm a few short retries. The
+ * follow-up AXValueChanged / AXLayoutChanged fires within tens of ms
+ * and the next refresh sees a consistent state. */
 static int pendingResettleRefreshes = 0;
 #define AX_MAX_RESETTLE_RETRIES 3
 
+/* Returns 1 when the cursor sits past where the actual rendered text
+ * ended on its row — i.e. somewhere inside the fillScreenWithSpaces
+ * padding rather than against real content. That gap is the
+ * signature of the AX caret/value race: AX reports a caret offset
+ * that no longer matches the (possibly-shrunk) text we just
+ * rendered.
+ *
+ * rowEndCol[cursorRow] is the col one past the last rendered
+ * character of the row's true text (including any trailing spaces
+ * the user actually typed). Cursor at that exact column is the
+ * legitimate "ready for next character" position. Anything strictly
+ * greater means the caret outran the text — clamp.
+ *
+ * The caller gets back the row's rendered length via *outRowEnd so
+ * it can compare across cycles for stability tracking. */
 static int
-isCursorOnEmptyRow(void) {
+isCursorBeyondRowContent(int *outRowEnd) {
+  int rowEnd = (cursorRow >= 0 && cursorRow < SCREEN_MAX_ROWS) ? rowEndCol[cursorRow] : 0;
+  if (outRowEnd) *outRowEnd = rowEnd;
   if (!screenBuffer || cursorRow < 0 || cursorRow >= screenRows) return 0;
-  /* Only treat it as suspicious if cursorCol > 0 — a true empty row with
-   * the cursor at column 0 is a legitimate "blank line" state (e.g. just
-   * after pressing Enter on a blank prompt). The bad state is "cursor is
-   * past column 0 but the row up to that point is whitespace". */
   if (cursorCol <= 0) return 0;
-  int limit = cursorCol < screenCols ? cursorCol : screenCols;
-  for (int c = 0; c < limit; c += 1) {
-    wchar_t ch = screenBuffer[cursorRow * screenCols + c];
-    if (ch != L' ' && ch != 0) return 0;
-  }
-  return 1;
+  return cursorCol > rowEnd;
 }
+
+/* Remember the last suspect state we armed retries for. If the next
+ * detection comes back with exactly the same (row, col, rowEnd)
+ * after a full retry cycle, the state is stable — not the transient
+ * AX race we were trying to ride out. Stop re-arming so we don't
+ * thrash the poll loop forever. */
+static int lastResettleArmRow = -1;
+static int lastResettleArmCol = -1;
+static int lastResettleArmRowEnd = INT32_MIN;
 
 static int
 poll_MacOSAccessibilityScreen(void) {
@@ -267,14 +407,14 @@ poll_MacOSAccessibilityScreen(void) {
   // notification. We trust that signal first because brltty's own update
   // cadence is too slow for typing.
   if (ax_consume_dirty()) {
-    logMessage(LOG_DEBUG, "mo: poll: dirty (from AX observer)");
+    mo_log("poll: dirty (from AX observer)");
     pendingResettleRefreshes = 0;
     return 1;
   }
 
   if (pendingResettleRefreshes > 0) {
     pendingResettleRefreshes -= 1;
-    logMessage(LOG_DEBUG, "mo: poll: resettle retry (remaining=%d)", pendingResettleRefreshes);
+    mo_log("poll: resettle retry (remaining=%d)", pendingResettleRefreshes);
     return 1;
   }
 
@@ -283,7 +423,7 @@ poll_MacOSAccessibilityScreen(void) {
   char fp[2048];
   ax_fingerprint(fp, sizeof(fp));
   if (strcmp(fp, lastFingerprint) != 0) {
-    logMessage(LOG_DEBUG, "mo: poll: fp changed");
+    mo_log("poll: fp changed");
     strncpy(lastFingerprint, fp, sizeof(lastFingerprint) - 1);
     lastFingerprint[sizeof(lastFingerprint) - 1] = '\0';
     return 1;
@@ -315,15 +455,44 @@ refresh_MacOSAccessibilityScreen(void) {
   cursorRow = row;
   cursorCol = col;
 
-  /* If the cursor landed on an empty row at column > 0, the app probably
-   * hasn't finished publishing the new line content. Arm a few re-polls
-   * so the next SCREEN_UPDATE_POLL_INTERVAL tick re-snapshots. */
-  if (isCursorOnEmptyRow()) {
-    if (pendingResettleRefreshes == 0) {
+  /* If the cursor landed past the visible text on its row, the app
+   * probably hasn't finished publishing the new content yet (the
+   * AXSelectedTextChanged/AXValueChanged race — see the comment near
+   * pendingResettleRefreshes).
+   *
+   * For the typing-forward shape of that race the next AX event tends
+   * to fire within tens of ms and the resettle catches it. For the
+   * backspace shape, though, Terminal.app frequently keeps the AX
+   * caret offset stuck at the pre-backspace position even after the
+   * value has shrunk — so col reads e.g. 4 when the rendered last
+   * line stops at col 3. resettle alone is useless because AX never
+   * updates. Clamp the visible cursor column to (lastNonSpace + 1)
+   * so the user actually sees the caret retreat, then ALSO arm the
+   * resettle so a slower AX catch-up still wins if it comes. */
+  int rowEnd = 0;
+  if (isCursorBeyondRowContent(&rowEnd)) {
+    int clampedCol = rowEnd;
+    if (clampedCol < 0) clampedCol = 0;
+    if (clampedCol >= screenCols) clampedCol = screenCols - 1;
+
+    int sameAsLastArm = (cursorRow == lastResettleArmRow
+                         && cursorCol == lastResettleArmCol
+                         && rowEnd == lastResettleArmRowEnd);
+    if (pendingResettleRefreshes == 0 && !sameAsLastArm) {
       pendingResettleRefreshes = AX_MAX_RESETTLE_RETRIES;
-      logMessage(LOG_DEBUG, "mo: cursor on empty row — arming resettle (row=%d col=%d)",
-                 cursorRow, cursorCol);
+      lastResettleArmRow = cursorRow;
+      lastResettleArmCol = cursorCol;
+      lastResettleArmRowEnd = rowEnd;
+      mo_log("cursor beyond row content — clamp col %d->%d, arming resettle (row=%d rowEnd=%d)",
+             cursorCol, clampedCol, cursorRow, rowEnd);
     }
+    cursorCol = clampedCol;
+  } else {
+    /* State no longer suspect — clear the markers so a future transient
+     * race on the same row/col can be armed again. */
+    lastResettleArmRow = -1;
+    lastResettleArmCol = -1;
+    lastResettleArmRowEnd = INT32_MIN;
   }
   return 1;
 }
@@ -371,6 +540,18 @@ static void
 describe_MacOSAccessibilityScreen(ScreenDescription *desc) {
   char bundle[256];
   size_t bn = ax_frontmost_bundle_id(bundle, sizeof bundle);
+
+  // Log bundle transitions so we can see exactly when describe() flips
+  // between terminal and unreadable modes — useful for chasing
+  // "stuck on stale state" symptoms after Cmd+Tab.
+  static char lastBundleSeen[256] = {0};
+  if (strncmp(bundle, lastBundleSeen, sizeof(lastBundleSeen)) != 0) {
+    mo_log("describe: bundle=%s (len=%zu, supported=%d)",
+           bn > 0 ? bundle : "(none)", bn,
+           bn > 0 ? isSupportedBundle(bundle) : 0);
+    strncpy(lastBundleSeen, bundle, sizeof(lastBundleSeen) - 1);
+    lastBundleSeen[sizeof(lastBundleSeen) - 1] = '\0';
+  }
 
   // Keep currentVirtualTerminal in sync (it also memoises lastReportedScope
   // for switchVirtualTerminal's prev/next detection) even though we

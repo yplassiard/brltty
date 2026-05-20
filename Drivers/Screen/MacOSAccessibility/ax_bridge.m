@@ -17,15 +17,78 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <time.h>
+#include <sys/time.h>
 
 // brltty core: schedule a screen redraw on the main update loop. Declared
 // here rather than via scr_main.h so this translation unit stays free of
 // brltty headers (which collide with Quickdraw).
 extern void mainScreenUpdated(void);
 
+// brltty logger. Declared manually for the same Quickdraw-avoidance reason
+// — log.h itself is harmless to include, but we keep the pattern uniform.
+// The LOG_DEBUG value mirrors Headers/log.h's enum (last entry, equal to
+// syslog's LOG_DEBUG = 7).
+extern void logMessage(int level, const char *format, ...);
+#ifndef LOG_DEBUG
+#define LOG_DEBUG 7
+#endif
+
 // Forward decl — defined further down. Multiple call sites earlier in
 // the file depend on it.
 static int frontmostWindowAndPid(pid_t *out_pid, CGWindowID *out_windowId);
+
+// ---- Per-tab diagnostic log -----------------------------------------------
+// One log file per AX tab so the trace splits cleanly when the user
+// reproduces something in tab N — no more cross-tab noise to sift
+// through. File handles are cached so we don't fopen/fclose on every
+// line; we accept the small leak across process lifetime (these are
+// long-running daemons).
+#define MO_TAB_LOG_MAX_TAB 99
+static pthread_mutex_t moLogLock = PTHREAD_MUTEX_INITIALIZER;
+static FILE *moTabLogCache[MO_TAB_LOG_MAX_TAB + 1] = { NULL };
+
+static FILE *
+moOpenTabLog(int tab) {
+    if (tab < 0 || tab > MO_TAB_LOG_MAX_TAB) tab = 0;
+    if (moTabLogCache[tab]) return moTabLogCache[tab];
+
+    char path[64];
+    snprintf(path, sizeof(path), "/tmp/screen-mo-%02d.log", tab);
+    FILE *f = fopen(path, "a");
+    if (!f) return NULL;
+    setlinebuf(f);
+    moTabLogCache[tab] = f;
+    return f;
+}
+
+void
+mo_log(const char *fmt, ...) {
+    int idx = 0, count = 0;
+    ax_get_active_tab(&idx, &count);  // idx=0 if no tab group
+
+    pthread_mutex_lock(&moLogLock);
+    FILE *f = moOpenTabLog(idx);
+    if (!f) {
+        pthread_mutex_unlock(&moLogLock);
+        return;
+    }
+
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    struct tm tm;
+    localtime_r(&tv.tv_sec, &tm);
+    fprintf(f, "%02d:%02d:%02d.%03d ",
+            tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(tv.tv_usec / 1000));
+
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    fputc('\n', f);
+
+    pthread_mutex_unlock(&moLogLock);
+}
 
 static NSString *
 copyStringAttribute(AXUIElementRef element, CFStringRef attribute) {
@@ -373,7 +436,14 @@ reattachIfNeeded(void) {
     // current frontmost, so reattach never fired even when the user
     // had Cmd+Tabbed away.
     pid_t pid = 0;
-    if (!frontmostWindowAndPid(&pid, NULL)) return;
+    if (!frontmostWindowAndPid(&pid, NULL)) {
+        static pid_t lastFailedReportedAt = -1;
+        if (lastFailedReportedAt != 0) {
+            mo_log("reattach: no frontmost pid (will retry)");
+            lastFailedReportedAt = 0;
+        }
+        return;
+    }
 
     @autoreleasepool {
         AXUIElementRef appEl = AXUIElementCreateApplication(pid);
@@ -395,13 +465,16 @@ reattachIfNeeded(void) {
             detachObservers_locked();
             attachObservers_locked(pid, appEl, toWatch);
             NSString *role = toWatch ? copyStringAttribute(toWatch, kAXRoleAttribute) : @"(none)";
-            axDebugLog("observer attached pid=%d role=%s\n",
-                       pid, role.UTF8String ?: "(none)");
+            mo_log("reattach: pid=%d role=%s",
+                   pid, role.UTF8String ?: "(none)");
             atomic_store(&observerDirty, 1);
             if (wakePipeWrite >= 0) {
                 unsigned char b = 1;
                 ssize_t r = write(wakePipeWrite, &b, 1);
-                (void)r;
+                if (r != 1) {
+                    mo_log("reattach: wake pipe write returned %zd (errno=%d)",
+                           r, errno);
+                }
             }
         }
         pthread_mutex_unlock(&observerLock);
@@ -1392,15 +1465,16 @@ ax_snapshot_lines(char *out_buf, size_t out_len,
                     haveVisible = 0;
                 }
                 if (!value) value = @"";
-                [result appendString:value];
 
+                // Compute cursor (row, col) on the *original* slice before
+                // any trimming below — AXLineForIndex / AXRangeForLine are
+                // both indexed off the full text, so we can't shift their
+                // results around without re-querying.
+                int row = 0, col = 0;
+                int haveCursor = 0;
                 if (out_row && out_col) {
-                    int row = 0, col = 0;
                     if (computeCursorPosition(textContainer, &row, &col)) {
-                        // When we rendered only the visible slice, the
-                        // cursor line returned by AXLineForIndex is relative
-                        // to the full text. Translate it to be relative to
-                        // the slice we sent to brltty.
+                        haveCursor = 1;
                         if (haveVisible) {
                             int firstLine = 0;
                             CFIndex visStart = visibleRange.location;
@@ -1417,9 +1491,57 @@ ax_snapshot_lines(char *out_buf, size_t out_len,
                             row -= firstLine;
                             if (row < 0) row = 0;
                         }
-                        *out_row = row;
-                        *out_col = col;
                     }
+                }
+
+                // Terminal.app and other text-area apps return the visible
+                // slice with a structural trailing '\n' marking the end of
+                // the visible window. If we pass it through verbatim the
+                // brltty grid grows one row beyond the actual content (the
+                // user's "last line is always empty" bug), and if the
+                // caret offset lands just past that newline AXLineForIndex
+                // puts the cursor on the phantom row, away from the
+                // prompt above. Trim the newline and, when the caret was
+                // on the phantom line, fold it back to the end of the
+                // last real line — that's where Terminal renders it
+                // visually anyway.
+                if (value.length > 0
+                    && [value characterAtIndex:value.length - 1] == '\n') {
+                    NSString *trimmed = [value substringToIndex:value.length - 1];
+
+                    if (haveCursor) {
+                        // Count newlines in `trimmed`. linesInTrimmed is
+                        // newlines + 1 (each \n separates two lines).
+                        int linesInTrimmed = 1;
+                        for (NSUInteger i = 0; i < trimmed.length; i += 1) {
+                            if ([trimmed characterAtIndex:i] == '\n') linesInTrimmed += 1;
+                        }
+                        // ONLY remap when AX put the caret on the row we
+                        // actually deleted (the phantom past the trailing
+                        // \n). Cursor still on the last real line — even
+                        // typing right at its end — must be left alone, or
+                        // backspace / mid-line edits get clobbered by the
+                        // "snap to end of line" override below.
+                        //   trimmed rows are indexed 0..linesInTrimmed-1
+                        //   phantom row index = linesInTrimmed
+                        if (row >= linesInTrimmed) {
+                            row = linesInTrimmed - 1;
+                            NSRange lastNl = [trimmed rangeOfString:@"\n"
+                                                            options:NSBackwardsSearch];
+                            col = (lastNl.location == NSNotFound)
+                                ? (int)trimmed.length
+                                : (int)(trimmed.length - lastNl.location - 1);
+                        }
+                    }
+
+                    value = trimmed;
+                }
+
+                [result appendString:value];
+
+                if (haveCursor) {
+                    *out_row = row;
+                    *out_col = col;
                 }
                 CFRelease(textContainer);
             } else {
@@ -1455,10 +1577,47 @@ ax_snapshot_lines(char *out_buf, size_t out_len,
             if (n >= out_len) n = out_len - 1;
             // Sample the last 80 chars so we can see typed text appear.
             const char *tail = n > 80 ? out_buf + n - 80 : out_buf;
-            axDebugLog("snapshot len=%zu row=%d col=%d tail='%s'\n",
-                       n, out_row ? *out_row : -1, out_col ? *out_col : -1, tail);
+            mo_log("snapshot len=%zu cursor=(%d,%d) tail='%s'",
+                   n, out_row ? *out_row : -1, out_col ? *out_col : -1, tail);
             return n;
         }
     }
     return 0;
+}
+
+// ---- NSPasteboard bridge ---------------------------------------------------
+
+long
+ax_pasteboard_set(const char *utf8) {
+    @autoreleasepool {
+        NSPasteboard *pb = [NSPasteboard generalPasteboard];
+        [pb clearContents];
+        if (utf8 && *utf8) {
+            NSString *s = [NSString stringWithUTF8String:utf8];
+            if (s) [pb setString:s forType:NSPasteboardTypeString];
+        }
+        return (long)pb.changeCount;
+    }
+}
+
+long
+ax_pasteboard_change_count(void) {
+    @autoreleasepool {
+        return (long)[NSPasteboard generalPasteboard].changeCount;
+    }
+}
+
+size_t
+ax_pasteboard_get_string(char *out_buf, size_t out_len) {
+    if (!out_buf || out_len == 0) return 0;
+    out_buf[0] = '\0';
+    @autoreleasepool {
+        NSString *s = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
+        if (!s || s.length == 0) return 0;
+        const char *cstr = s.UTF8String;
+        if (!cstr) return 0;
+        size_t n = strlcpy(out_buf, cstr, out_len);
+        if (n >= out_len) n = out_len - 1;
+        return n;
+    }
 }
