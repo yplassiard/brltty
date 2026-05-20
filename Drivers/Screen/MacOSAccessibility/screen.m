@@ -353,11 +353,14 @@ isSupportedBundle(const char *bundleId) {
 }
 
 // Displayed on the braille line whenever the frontmost macOS app is
-// not one we know how to read via AX. brltty's core takes
-// description->unreadable as the source of truth and surfaces this
-// string the same way the Linux driver surfaces "screen not in text
-// mode" when /dev/vcsa is unreadable.
+// not one we know how to read via AX. Padded to a fixed 40-cell width
+// so we present a real, deterministic 1x40 screen to brltty rather
+// than going through the desc->unreadable mechanism — the latter
+// didn't reliably repaint over the previous (much larger) terminal
+// screen and the user kept seeing stale Terminal content.
 #define UNREADABLE_NOT_TERMINAL "screen not in a terminal app"
+#define UNREADABLE_SCREEN_COLS  40
+#define UNREADABLE_SCREEN_ROWS  1
 
 // Forward decl so describe() can call into the brlapi scope hash
 // without reordering the whole file. The definition stays alongside
@@ -379,14 +382,16 @@ describe_MacOSAccessibilityScreen(ScreenDescription *desc) {
   desc->hasSelection = 0;
 
   if (bn == 0 || !isSupportedBundle(bundle)) {
-    // Frontmost is either unknown or not a terminal-like app whose
-    // text we can faithfully extract. brltty's core renders
-    // description->unreadable via setScreenMessage in our
-    // readCharacters hook below — we just need to advertise the
-    // message and its dimensions.
-    desc->unreadable = UNREADABLE_NOT_TERMINAL;
-    desc->cols = (int)strlen(UNREADABLE_NOT_TERMINAL);
-    desc->rows = 1;
+    // Present a deterministic 1x40 screen containing the message,
+    // padded with spaces. We don't go through desc->unreadable because
+    // brltty's core seems to retain the previous frame's geometry when
+    // unreadable is set — the user kept reading stale terminal content
+    // on Cmd+Tab. By advertising a real, smaller screen with explicit
+    // dimensions, we force the braille line to redraw against our
+    // buffer.
+    desc->unreadable = NULL;
+    desc->cols = UNREADABLE_SCREEN_COLS;
+    desc->rows = UNREADABLE_SCREEN_ROWS;
     desc->posx = 0;
     desc->posy = 0;
     desc->hasCursor = 0;
@@ -404,14 +409,27 @@ describe_MacOSAccessibilityScreen(ScreenDescription *desc) {
 
 static int
 readCharacters_MacOSAccessibilityScreen(const ScreenBox *box, ScreenCharacter *buffer) {
-  // When the frontmost app isn't terminal-like, describe() flipped
-  // us into single-line "unreadable" mode. Mirror that here so
-  // brltty actually sees the message glyphs on the braille line
-  // instead of stale terminal content.
   char bundle[256];
   size_t bn = ax_frontmost_bundle_id(bundle, sizeof bundle);
+
   if (bn == 0 || !isSupportedBundle(bundle)) {
-    setScreenMessage(box, buffer, UNREADABLE_NOT_TERMINAL);
+    // describe() advertised a 1x40 screen with the unreadable message.
+    // Fill the requested box from a 40-cell buffer containing the
+    // message left-justified and space-padded. validateScreenBox bounds
+    // box against the dimensions we promised in describe().
+    if (!validateScreenBox(box, UNREADABLE_SCREEN_COLS, UNREADABLE_SCREEN_ROWS)) return 0;
+    const char *msg = UNREADABLE_NOT_TERMINAL;
+    size_t mlen = strlen(msg);
+    for (int row = 0; row < box->height; row += 1) {
+      for (int col = 0; col < box->width; col += 1) {
+        int srcCol = box->left + col;
+        ScreenCharacter *target = &buffer[(row * box->width) + col];
+        target->text = (srcCol < (int)mlen) ? (wchar_t)(unsigned char)msg[srcCol] : L' ';
+        target->color.vgaAttributes = 0x07;
+        target->color.foreground = (RGBColor){255, 255, 255};
+        target->color.background = (RGBColor){0, 0, 0};
+      }
+    }
     return 1;
   }
 

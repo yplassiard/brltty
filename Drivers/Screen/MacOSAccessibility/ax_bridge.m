@@ -23,6 +23,10 @@
 // brltty headers (which collide with Quickdraw).
 extern void mainScreenUpdated(void);
 
+// Forward decl — defined further down. Multiple call sites earlier in
+// the file depend on it.
+static int frontmostWindowAndPid(pid_t *out_pid, CGWindowID *out_windowId);
+
 static NSString *
 copyStringAttribute(AXUIElementRef element, CFStringRef attribute) {
     if (!element) return nil;
@@ -359,14 +363,19 @@ attachObservers_locked(pid_t pid, AXUIElementRef appElement, AXUIElementRef focu
 }
 
 // Reattach the observer to the current frontmost app / focused element.
-// Called from the observer thread on a timer.
+// Called from the observer thread on a timer and on
+// NSWorkspaceDidActivateApplicationNotification.
 static void
 reattachIfNeeded(void) {
-    @autoreleasepool {
-        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-        if (!app) return;
-        pid_t pid = app.processIdentifier;
+    // Frontmost PID via CGWindowList rather than NSWorkspace — see the
+    // comment in ax_frontmost_bundle_id. The observer was getting stuck
+    // on the previously-active app because NSWorkspace lied about the
+    // current frontmost, so reattach never fired even when the user
+    // had Cmd+Tabbed away.
+    pid_t pid = 0;
+    if (!frontmostWindowAndPid(&pid, NULL)) return;
 
+    @autoreleasepool {
         AXUIElementRef appEl = AXUIElementCreateApplication(pid);
         AXUIElementRef focused = copyElementAttribute(appEl, kAXFocusedUIElementAttribute);
         AXUIElementRef textContainer = findTextContainer(focused);
@@ -425,7 +434,10 @@ observerLoop(void *unused) {
     CFRunLoopTimerRef timer = CFRunLoopTimerCreate(
         kCFAllocatorDefault,
         CFAbsoluteTimeGetCurrent(),
-        0.1, /* backup fire every 100ms — catches intra-app focus changes */
+        0.04, /* backup fire every 40ms — matches brltty's SCREEN_UPDATE_POLL_INTERVAL
+                 so a focus change can't sit unobserved longer than one of brltty's
+                 own update cycles. Cost is microseconds per fire (AX system-wide
+                 query); the limiter is the receiver, not the producer. */
         0, 0, reattachTimerCallback, &ctx);
     CFRunLoopAddTimer(observerRunLoop, timer, kCFRunLoopDefaultMode);
 
@@ -849,10 +861,9 @@ focusFrontmostTextAreaAfterDelay(double delaySeconds) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
                                  (int64_t)(delaySeconds * NSEC_PER_SEC)),
                    dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        pid_t pid = 0;
+        if (!frontmostWindowAndPid(&pid, NULL)) return;
         @autoreleasepool {
-            NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-            if (!app) return;
-            pid_t pid = app.processIdentifier;
             AXUIElementRef appEl = AXUIElementCreateApplication(pid);
             AXUIElementRef window = copyElementAttribute(appEl, kAXFocusedWindowAttribute);
 
@@ -1023,33 +1034,95 @@ findSelectedTabIndex(AXUIElementRef tabGroup, int *out_count) {
     return selected;
 }
 
-/* CGWindowID of the topmost on-screen window owned by `pid`, or 0 if no
- * such window is currently rendered. CGWindowList returns windows in
- * front-to-back order, so the first match is the frontmost. */
-static CGWindowID
-frontmostCgWindowIdForPid(pid_t pid) {
-    CFArrayRef windows = CGWindowListCopyWindowInfo(
-        kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
-        kCGNullWindowID);
-    if (!windows) return 0;
+/* Look up the focused application's PID and (best-effort) its
+ * frontmost CGWindowID.
+ *
+ * PID is sourced from AXUIElementCreateSystemWide() +
+ * kAXFocusedApplicationAttribute. This relies only on the Accessibility
+ * permission that brltty already requires for the screen driver to
+ * work at all. We deliberately avoid NSWorkspace.frontmostApplication
+ * (notification-based caching that doesn't refresh in a non-NSApp C
+ * daemon) and CGWindowList-as-source-of-truth (under macOS TCC, a
+ * non-NSApp process running as root via sudo and lacking the Screen
+ * Recording permission only sees its own windows — for brltty that's
+ * an empty list, so we'd never see the user's frontmost app change).
+ *
+ * For the CGWindowID we still consult CGWindowList filtered to the
+ * focused PID — it's the only way to get a stable window identifier
+ * we can hash into the BrlAPI scope. If TCC redacts that list we
+ * fall back to winId=0, which just collapses every window of the
+ * app to the same scope slot. Bundle-id-based routing keeps working
+ * regardless; only per-window granularity degrades.
+ *
+ * Returns 1 on success with at least a valid PID. Either out pointer
+ * may be NULL.
+ */
+static int
+frontmostWindowAndPid(pid_t *out_pid, CGWindowID *out_windowId) {
+    pid_t pid = 0;
 
-    CGWindowID result = 0;
-    CFIndex n = CFArrayGetCount(windows);
-    for (CFIndex i = 0; i < n; i += 1) {
-        CFDictionaryRef w = (CFDictionaryRef)CFArrayGetValueAtIndex(windows, i);
-        CFNumberRef ownerPidCF = (CFNumberRef)CFDictionaryGetValue(w, kCGWindowOwnerPID);
-        if (!ownerPidCF) continue;
-        pid_t ownerPid = 0;
-        if (!CFNumberGetValue(ownerPidCF, kCFNumberSInt32Type, &ownerPid)) continue;
-        if (ownerPid != pid) continue;
+    AXUIElementRef sys = AXUIElementCreateSystemWide();
+    if (sys) {
+        CFTypeRef focusedAppRef = NULL;
+        AXError err = AXUIElementCopyAttributeValue(sys,
+                                                    kAXFocusedApplicationAttribute,
+                                                    &focusedAppRef);
+        if (err == kAXErrorSuccess && focusedAppRef) {
+            pid_t p = 0;
+            if (AXUIElementGetPid((AXUIElementRef)focusedAppRef, &p) == kAXErrorSuccess
+                && p > 0) {
+                pid = p;
+            }
+            CFRelease(focusedAppRef);
+        }
+        CFRelease(sys);
+    }
 
-        CFNumberRef numCF = (CFNumberRef)CFDictionaryGetValue(w, kCGWindowNumber);
-        if (numCF && CFNumberGetValue(numCF, kCFNumberSInt32Type, &result) && result != 0) {
-            break;
+    /* Fallback: AXUIElementCreateSystemWide briefly returns NO focused
+     * app right after process start (observed on macOS 26: the very
+     * first kAXFocusedApplicationAttribute query post-sudo returns
+     * kAXErrorNoValue for ~5 s until the user types something).
+     * NSWorkspace.frontmostApplication isn't push-event-reliable in a
+     * non-NSApp daemon, but its initial snapshot at process start is
+     * usually correct — good enough as a startup safety net. */
+    if (pid == 0) {
+        @autoreleasepool {
+            NSRunningApplication *app =
+                [[NSWorkspace sharedWorkspace] frontmostApplication];
+            if (app) pid = app.processIdentifier;
         }
     }
-    CFRelease(windows);
-    return result;
+
+    if (pid == 0) return 0;
+    if (out_pid) *out_pid = pid;
+
+    if (out_windowId) {
+        CGWindowID winId = 0;
+        CFArrayRef windows = CGWindowListCopyWindowInfo(
+            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+            kCGNullWindowID);
+        if (windows) {
+            CFIndex n = CFArrayGetCount(windows);
+            for (CFIndex i = 0; i < n; i += 1) {
+                CFDictionaryRef w = (CFDictionaryRef)CFArrayGetValueAtIndex(windows, i);
+                CFNumberRef layerCF = (CFNumberRef)CFDictionaryGetValue(w, kCGWindowLayer);
+                int layer = 0;
+                if (layerCF
+                    && CFNumberGetValue(layerCF, kCFNumberIntType, &layer)
+                    && layer != 0) continue;
+                CFNumberRef pidCF = (CFNumberRef)CFDictionaryGetValue(w, kCGWindowOwnerPID);
+                pid_t ownerPid = 0;
+                if (!pidCF || !CFNumberGetValue(pidCF, kCFNumberSInt32Type, &ownerPid)) continue;
+                if (ownerPid != pid) continue;
+                CFNumberRef numCF = (CFNumberRef)CFDictionaryGetValue(w, kCGWindowNumber);
+                if (numCF) CFNumberGetValue(numCF, kCFNumberSInt32Type, &winId);
+                break;
+            }
+            CFRelease(windows);
+        }
+        *out_windowId = winId;
+    }
+    return 1;
 }
 
 /* djb2 over a NUL-terminated string, masked to 16 bits. Folded into the
@@ -1078,20 +1151,26 @@ scopeWindowSlot(uint32_t cgWindowId) {
 int
 ax_get_frontmost_scope(uint32_t *out_scope) {
     if (!out_scope) return 0;
+    pid_t pid = 0;
+    CGWindowID winId = 0;
+    if (!frontmostWindowAndPid(&pid, &winId)) return 0;
+
+    // winId may be 0 if CGWindowList was redacted by TCC (brltty running
+    // as root without Screen Recording permission). The scope then
+    // collapses every window of the app onto slot 0 — per-window
+    // routing degrades to per-app, which is the right safe fallback.
+
     int success = 0;
     @autoreleasepool {
-        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-        if (!app) return 0;
+        NSRunningApplication *app =
+            [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
         const char *bid = app.bundleIdentifier.UTF8String;
-        if (!bid || !*bid) return 0;
-
-        CGWindowID winId = frontmostCgWindowIdForPid(app.processIdentifier);
-        if (winId == 0) return 0;
-
-        uint32_t bundleHash16 = scopeBundleHash(bid);
-        uint32_t windowSlot15 = scopeWindowSlot((uint32_t)winId);
-        *out_scope = (bundleHash16 << 15) | windowSlot15;
-        success = 1;
+        if (bid && *bid) {
+            uint32_t bundleHash16 = scopeBundleHash(bid);
+            uint32_t windowSlot15 = scopeWindowSlot((uint32_t)winId);
+            *out_scope = (bundleHash16 << 15) | windowSlot15;
+            success = 1;
+        }
     }
     return success;
 }
@@ -1099,11 +1178,11 @@ ax_get_frontmost_scope(uint32_t *out_scope) {
 int
 ax_get_active_tab(int *out_index, int *out_count) {
     if (!out_index || !out_count) return 0;
+    pid_t pid = 0;
+    if (!frontmostWindowAndPid(&pid, NULL)) return 0;
+
     int success = 0;
     @autoreleasepool {
-        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-        if (!app) return 0;
-        pid_t pid = app.processIdentifier;
         AXUIElementRef appEl = AXUIElementCreateApplication(pid);
         AXUIElementRef window = copyElementAttribute(appEl, kAXFocusedWindowAttribute);
         if (!window) {
@@ -1142,18 +1221,21 @@ ax_frontmost_bundle_id(char *out_buf, size_t out_len) {
     if (!out_buf || out_len == 0) return 0;
     out_buf[0] = '\0';
 
-    // Query NSWorkspace directly each call. The earlier cached
-    // implementation relied on NSWorkspaceDidActivateApplicationNotification
-    // to invalidate the cache, but that notification needs an active
-    // notification-aware run loop in this process — brltty is a C
-    // daemon without NSApp, so the callback fired late or not at
-    // all and describe() kept seeing the previous frontmost (visible
-    // as "stale terminal content sticking around after Cmd+Tab").
-    // NSWorkspace's frontmostApplication is a cheap XPC probe; calling
-    // it once per brltty refresh cycle is well within budget.
+    // Source of truth for "who is frontmost" is CGWindowList (which
+    // queries the WindowServer directly via Mach), NOT
+    // NSWorkspace.frontmostApplication. The latter has notification-
+    // driven internal caching that doesn't refresh reliably in a
+    // non-NSApp C daemon like brltty — calling it returned the
+    // pre-Cmd+Tab app for tens of seconds, which is what made the
+    // braille line keep showing Terminal content after the user had
+    // switched away. PIDs from CGWindowList are always fresh.
+    pid_t pid = 0;
+    if (!frontmostWindowAndPid(&pid, NULL)) return 0;
+
     size_t written = 0;
     @autoreleasepool {
-        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        NSRunningApplication *app =
+            [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
         const char *bid = app.bundleIdentifier.UTF8String;
         if (bid) {
             written = strnlen(bid, out_len - 1);
@@ -1169,13 +1251,12 @@ ax_fingerprint(char *out_buf, size_t out_len) {
     if (!out_buf || out_len == 0) return 0;
     size_t written = 0;
 
+    pid_t pid = 0;
+    if (!frontmostWindowAndPid(&pid, NULL)) {
+        return (size_t)snprintf(out_buf, out_len, "(no app)");
+    }
+
     @autoreleasepool {
-        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-        if (!app) {
-            written = (size_t)snprintf(out_buf, out_len, "(no app)");
-            return written;
-        }
-        pid_t pid = app.processIdentifier;
         AXUIElementRef appEl = AXUIElementCreateApplication(pid);
         AXUIElementRef window = copyElementAttribute(appEl, kAXFocusedWindowAttribute);
         AXUIElementRef focused = copyElementAttribute(appEl, kAXFocusedUIElementAttribute);
@@ -1258,12 +1339,16 @@ ax_snapshot_lines(char *out_buf, size_t out_len,
 
     NSMutableString *result = [NSMutableString stringWithCapacity:512];
 
+    pid_t pid = 0;
+    int havePid = frontmostWindowAndPid(&pid, NULL);
+
     @autoreleasepool {
-        NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+        NSRunningApplication *app =
+            havePid ? [NSRunningApplication runningApplicationWithProcessIdentifier:pid]
+                    : nil;
         if (!app) {
             [result appendString:@"(no frontmost application)"];
         } else {
-            pid_t pid = app.processIdentifier;
             AXUIElementRef appEl = AXUIElementCreateApplication(pid);
 
             NSString *appName = app.localizedName ?: @"(unknown)";
