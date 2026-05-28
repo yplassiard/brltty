@@ -1,0 +1,17 @@
+This directory contains the BRLTTY driver for the InsideONE braille display by
+InsideVision [http://www.insidevision.fr/].
+
+Unlike the original driver, which was a TCP client of the vendor's Windows Core
+daemon, this one talks to the hardware directly over USB HID and needs no vendor
+software. It drives two HID devices:
+
+  * the KGS braille module (VID 0x10C4, PID 0x82CD) for the 32 cells, the
+    blinking cursor and the sleep/backlight state;
+  * the multitouch digitizer for all input.
+
+The digitizer's USB identifiers are not yet hard-coded. Supply them (hex) with
+the driver parameters until they are confirmed on hardware, e.g.:
+
+  brltty -b iv -B touchvendor=XXXX,touchproduct=YYYY
+
+With no touch identifiers the braille output still works; input is disabled.
